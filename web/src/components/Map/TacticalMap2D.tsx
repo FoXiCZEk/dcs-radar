@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import { useRadar } from '../../context/RadarContext';
-import { PauseCircle, WifiOff, Radio, Server, Maximize2 } from 'lucide-react';
+import { PauseCircle, WifiOff, Radio, Maximize2 } from 'lucide-react';
 import { getSAMProfile, createGeoJSONCircle } from '../../utils/samDatabase';
 import { calculateBRAA, THEATER_BULLSEYE } from '../../utils/braa';
 
@@ -12,6 +12,8 @@ interface TacticalMap2DProps {
 export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const [isMapReady, setIsMapReady] = useState<boolean>(false);
+  const autoCenteredRef = useRef<boolean>(false);
 
   const {
     objects,
@@ -25,6 +27,7 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
     mapConfig,
     mapStyle,
     status,
+    viewMode,
   } = useRadar();
 
   const isAltFt = mapConfig?.altitudeUnit === 'ft';
@@ -46,6 +49,7 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
       container: mapContainerRef.current,
       style: {
         version: 8,
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
         sources: {
           'basemap-dark': {
             type: 'raster',
@@ -118,7 +122,7 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
     map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
 
     map.on('load', () => {
-      // 1. Add GeoJSON source for trajectories
+      // 1. Add GeoJSON source & layer for trajectories
       map.addSource('trajectories-source', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -136,58 +140,7 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
         },
       });
 
-      // 2. Add GeoJSON source for unit markers
-      map.addSource('units-source', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
-      });
-
-      // Unit circle background
-      map.addLayer({
-        id: 'units-circle',
-        type: 'circle',
-        source: 'units-source',
-        paint: {
-          'circle-radius': [
-            'case',
-            ['==', ['get', 'id'], selectedObjectId || ''],
-            10,
-            ['==', ['get', 'category'], 'Weapon'],
-            5,
-            7,
-          ],
-          'circle-color': ['get', 'color'],
-          'circle-opacity': 0.85,
-          'circle-stroke-width': [
-            'case',
-            ['==', ['get', 'id'], selectedObjectId || ''],
-            3,
-            1.5,
-          ],
-          'circle-stroke-color': '#ffffff',
-        },
-      });
-
-      // Labels layer
-      map.addLayer({
-        id: 'units-labels',
-        type: 'symbol',
-        source: 'units-source',
-        layout: {
-          'text-field': ['get', 'label'],
-          'text-size': 11,
-          'text-offset': [0, 1.4],
-          'text-anchor': 'top',
-          'text-allow-overlap': false,
-        },
-        paint: {
-          'text-color': '#f8fafc',
-          'text-halo-color': '#0a0f1d',
-          'text-halo-width': 1.5,
-        },
-      });
-
-      // 3. SAM Threat Rings source and layers
+      // 2. SAM Threat Rings source and layers
       map.addSource('sam-rings-source', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -232,7 +185,7 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
         },
       });
 
-      // 4. BRAA vector measurement source and layers
+      // 3. BRAA vector measurement source and layers
       map.addSource('braa-vector-source', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -267,6 +220,68 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
         },
       });
 
+      // 4. Add GeoJSON source for unit markers (top overlay)
+      map.addSource('units-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      // Unit circle background
+      map.addLayer({
+        id: 'units-circle',
+        type: 'circle',
+        source: 'units-source',
+        paint: {
+          'circle-radius': [
+            'case',
+            ['get', 'isSelected'],
+            11,
+            ['get', 'isReference'],
+            9,
+            ['==', ['get', 'category'], 'Weapon'],
+            5,
+            7,
+          ],
+          'circle-color': ['get', 'color'],
+          'circle-opacity': 0.9,
+          'circle-stroke-width': [
+            'case',
+            ['get', 'isSelected'],
+            3,
+            ['get', 'isReference'],
+            2.5,
+            1.5,
+          ],
+          'circle-stroke-color': [
+            'case',
+            ['get', 'isSelected'],
+            '#ffffff',
+            ['get', 'isReference'],
+            '#facc15',
+            '#ffffff',
+          ],
+        },
+      });
+
+      // Labels layer
+      map.addLayer({
+        id: 'units-labels',
+        type: 'symbol',
+        source: 'units-source',
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 11,
+          'text-offset': [0, 1.4],
+          'text-anchor': 'top',
+          'text-allow-overlap': false,
+        },
+        paint: {
+          'text-color': '#f8fafc',
+          'text-halo-color': '#0a0f1d',
+          'text-halo-width': 1.5,
+        },
+      });
+
       // Click event on unit markers
       map.on('click', 'units-circle', (e: any) => {
         if (e.features && e.features[0]) {
@@ -285,53 +300,78 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
       });
 
       mapRef.current = map;
+      setIsMapReady(true);
       if (onMapReady) onMapReady(map);
     });
 
     return () => {
+      setIsMapReady(false);
       map.remove();
       mapRef.current = null;
     };
   }, [mapConfig]);
 
+  // Window resize & viewMode toggle handling
+  useEffect(() => {
+    const handleResize = () => {
+      if (mapRef.current) {
+        mapRef.current.resize();
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (viewMode === '2d' && mapRef.current && isMapReady) {
+      setTimeout(() => {
+        mapRef.current?.resize();
+      }, 50);
+    }
+  }, [viewMode, isMapReady]);
+
   // Switch visible basemap layer on mapStyle change
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !isMapReady) return;
 
-    const applyVisibility = () => {
-      const layers = [
-        { id: 'basemap-dark-layer', style: 'dark' },
-        { id: 'basemap-satellite-layer', style: 'satellite' },
-        { id: 'basemap-voyager-layer', style: 'voyager' },
-        { id: 'basemap-osm-layer', style: 'osm' },
-      ];
+    const layers = [
+      { id: 'basemap-dark-layer', style: 'dark' },
+      { id: 'basemap-satellite-layer', style: 'satellite' },
+      { id: 'basemap-voyager-layer', style: 'voyager' },
+      { id: 'basemap-osm-layer', style: 'osm' },
+    ];
 
-      layers.forEach(({ id, style }) => {
-        if (map.getLayer(id)) {
-          map.setLayoutProperty(id, 'visibility', mapStyle === style ? 'visible' : 'none');
-        }
-      });
-    };
-
-    if (map.isStyleLoaded()) {
-      applyVisibility();
-    } else {
-      map.once('load', applyVisibility);
-    }
-  }, [mapStyle]);
+    layers.forEach(({ id, style }) => {
+      if (map.getLayer(id)) {
+        map.setLayoutProperty(id, 'visibility', mapStyle === style ? 'visible' : 'none');
+      }
+    });
+    map.triggerRepaint();
+  }, [mapStyle, isMapReady]);
 
   // 2. Filter and update GeoJSON data
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map || !isMapReady) return;
+
+    const unitsSource = map.getSource('units-source') as maplibregl.GeoJSONSource;
+    if (!unitsSource) return;
 
     // Apply active filters
     const filteredObjects = objects.filter((obj) => {
+      if (!obj || !obj.currentTransform) return false;
+      const tr = obj.currentTransform;
+      if (typeof tr.latitude !== 'number' || typeof tr.longitude !== 'number') return false;
+
       // Coalition filter
-      if (!filters.coalitions.includes(obj.coalition)) return false;
+      if (filters.coalitions.length > 0 && obj.coalition && !filters.coalitions.includes(obj.coalition)) {
+        return false;
+      }
       // Category filter
-      if (!filters.categories.includes(obj.category)) return false;
+      if (filters.categories.length > 0 && obj.category && !filters.categories.includes(obj.category)) {
+        return false;
+      }
       // Search term
       if (filters.searchTerm) {
         const term = filters.searchTerm.toLowerCase();
@@ -341,41 +381,64 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
         const matchesID = obj.id.toLowerCase().includes(term);
         if (!matchesName && !matchesPilot && !matchesCallsign && !matchesID) return false;
       }
-      // Altitude range
-      if (obj.currentTransform.altitude < filters.minAltitude || obj.currentTransform.altitude > filters.maxAltitude) {
-        return false;
-      }
-      // Speed range
-      const speed = obj.currentTransform.speedKts || 0;
-      if (speed < filters.minSpeed || speed > filters.maxSpeed) {
-        return false;
-      }
       return true;
     });
+
+    // Auto-fit camera once when telemetry units first arrive
+    if (!autoCenteredRef.current && filteredObjects.length > 0) {
+      autoCenteredRef.current = true;
+      let minLon = 180, maxLon = -180, minLat = 90, maxLat = -90;
+      filteredObjects.forEach((o) => {
+        const lon = o.currentTransform.longitude;
+        const lat = o.currentTransform.latitude;
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      });
+      if (minLon <= maxLon && minLat <= maxLat) {
+        if (minLon === maxLon && minLat === maxLat) {
+          map.easeTo({ center: [minLon, minLat], zoom: 10, duration: 800 });
+        } else {
+          map.fitBounds(
+            [
+              [minLon - 0.08, minLat - 0.08],
+              [maxLon + 0.08, maxLat + 0.08],
+            ],
+            { padding: 80, maxZoom: 12, duration: 1000 }
+          );
+        }
+      }
+    }
 
     // Build Trajectory GeoJSON
     const trajectoryFeatures: any[] = [];
     if (filters.showTrails) {
       filteredObjects.forEach((obj) => {
         if (obj.trail && obj.trail.length > 1) {
-          const coords = obj.trail.map((t) => [t.longitude, t.latitude]);
-          const color =
-            obj.coalition === 'Blue'
-              ? '#38bdf8'
-              : obj.coalition === 'Red'
-              ? '#f87171'
-              : obj.coalition === 'Neutral'
-              ? '#4ade80'
-              : '#fbbf24';
+          const coords = obj.trail
+            .filter((t) => typeof t.longitude === 'number' && typeof t.latitude === 'number')
+            .map((t) => [t.longitude, t.latitude]);
 
-          trajectoryFeatures.push({
-            type: 'Feature',
-            properties: { id: obj.id, color },
-            geometry: {
-              type: 'LineString',
-              coordinates: coords,
-            },
-          });
+          if (coords.length > 1) {
+            const color =
+              obj.coalition === 'Blue'
+                ? '#38bdf8'
+                : obj.coalition === 'Red'
+                ? '#f87171'
+                : obj.coalition === 'Neutral'
+                ? '#4ade80'
+                : '#fbbf24';
+
+            trajectoryFeatures.push({
+              type: 'Feature',
+              properties: { id: obj.id, color },
+              geometry: {
+                type: 'LineString',
+                coordinates: coords,
+              },
+            });
+          }
         }
       });
     }
@@ -391,6 +454,9 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
     // Build Unit Point Features
     const unitFeatures: any[] = filteredObjects.map((obj) => {
       const tr = obj.currentTransform;
+      const isSelected = obj.id === selectedObjectId;
+      const isReference = obj.id === referenceObjectId;
+
       const color =
         obj.coalition === 'Blue'
           ? '#38bdf8'
@@ -411,19 +477,21 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
         : `${Math.round(tr.speedKts || 0)}kt`;
 
       const label = filters.showLabels
-        ? `${obj.name || obj.type}\n${altStr} • ${speedStr}`
+        ? `${obj.name || obj.type || obj.id}\n${altStr} • ${speedStr}`
         : '';
 
       return {
         type: 'Feature',
         properties: {
           id: obj.id,
-          name: obj.name || obj.type,
-          coalition: obj.coalition,
-          category: obj.category,
+          name: obj.name || obj.type || obj.id,
+          coalition: obj.coalition || 'Unknown',
+          category: obj.category || 'Other',
           heading: tr.heading || tr.yaw || 0,
           color,
           label,
+          isSelected,
+          isReference,
         },
         geometry: {
           type: 'Point',
@@ -432,13 +500,10 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
       };
     });
 
-    const unitsSource = map.getSource('units-source') as maplibregl.GeoJSONSource;
-    if (unitsSource) {
-      unitsSource.setData({
-        type: 'FeatureCollection',
-        features: unitFeatures,
-      });
-    }
+    unitsSource.setData({
+      type: 'FeatureCollection',
+      features: unitFeatures,
+    });
 
     // 3. SAM Threat Rings GeoJSON
     const samFeatures: any[] = [];
@@ -446,7 +511,7 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
       filteredObjects.forEach((obj) => {
         if (!obj.alive) return;
         const profile = getSAMProfile(obj.type, obj.name);
-        if (profile) {
+        if (profile && obj.currentTransform) {
           const coords = createGeoJSONCircle(
             obj.currentTransform.longitude,
             obj.currentTransform.latitude,
@@ -539,14 +604,25 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
     // 5. Camera follow mode
     if (followSelected && selectedObjectId) {
       const selected = objects.find((o) => o.id === selectedObjectId);
-      if (selected) {
+      if (selected && selected.currentTransform) {
         map.easeTo({
           center: [selected.currentTransform.longitude, selected.currentTransform.latitude],
           duration: 300,
         });
       }
     }
-  }, [objects, filters, selectedObjectId, referenceObject, selectedObject, followSelected, isAltFt, isSpeedKmh]);
+  }, [
+    isMapReady,
+    objects,
+    filters,
+    selectedObjectId,
+    referenceObjectId,
+    referenceObject,
+    selectedObject,
+    followSelected,
+    isAltFt,
+    isSpeedKmh,
+  ]);
 
   const [isBannerDismissed, setIsBannerDismissed] = React.useState(false);
 
@@ -560,9 +636,12 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
   const handleFitTheater = () => {
     const map = mapRef.current;
     if (!map) return;
-    if (objects.length > 0) {
+    const validObjects = objects.filter(
+      (o) => o.currentTransform && typeof o.currentTransform.latitude === 'number' && typeof o.currentTransform.longitude === 'number'
+    );
+    if (validObjects.length > 0) {
       let minLon = 180, maxLon = -180, minLat = 90, maxLat = -90;
-      objects.forEach((o) => {
+      validObjects.forEach((o) => {
         const lon = o.currentTransform.longitude;
         const lat = o.currentTransform.latitude;
         if (lon < minLon) minLon = lon;
@@ -571,13 +650,17 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
         if (lat > maxLat) maxLat = lat;
       });
       if (minLon <= maxLon && minLat <= maxLat) {
-        map.fitBounds(
-          [
-            [minLon - 0.05, minLat - 0.05],
-            [maxLon + 0.05, maxLat + 0.05],
-          ],
-          { padding: 80, duration: 800 }
-        );
+        if (minLon === maxLon && minLat === maxLat) {
+          map.easeTo({ center: [minLon, minLat], zoom: 10, duration: 800 });
+        } else {
+          map.fitBounds(
+            [
+              [minLon - 0.08, minLat - 0.08],
+              [maxLon + 0.08, maxLat + 0.08],
+            ],
+            { padding: 80, maxZoom: 12, duration: 800 }
+          );
+        }
         return;
       }
     }

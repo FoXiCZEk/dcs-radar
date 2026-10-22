@@ -29,6 +29,14 @@ const RadarApp: React.FC = () => {
     }
   };
 
+  React.useEffect(() => {
+    if (viewMode === '2d' && mapInstanceRef.current) {
+      setTimeout(() => {
+        mapInstanceRef.current?.resize();
+      }, 50);
+    }
+  }, [viewMode]);
+
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
       {/* Top Tactical System Bar */}
@@ -45,11 +53,12 @@ const RadarApp: React.FC = () => {
 
       {/* Main Map / Globe Display */}
       <main style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }}>
-        {viewMode === '2d' ? (
+        <div style={{ width: '100%', height: '100%', display: viewMode === '2d' ? 'block' : 'none' }}>
           <TacticalMap2D onMapReady={(map) => (mapInstanceRef.current = map)} />
-        ) : (
+        </div>
+        <div style={{ width: '100%', height: '100%', display: viewMode === '3d' ? 'block' : 'none' }}>
           <TacticalGlobe3D />
-        )}
+        </div>
       </main>
 
       {/* Sidebars & Panels */}

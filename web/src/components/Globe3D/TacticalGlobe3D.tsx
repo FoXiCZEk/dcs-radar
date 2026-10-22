@@ -117,7 +117,8 @@ export const TacticalGlobe3D: React.FC = () => {
     try {
       viewer.imageryLayers.removeAll();
       const provider = createImageryProvider(mapStyle);
-      viewer.imageryLayers.addImageryProvider(provider);
+      const layer = new Cesium.ImageryLayer(provider);
+      viewer.imageryLayers.add(layer);
     } catch (err) {
       console.error('Failed to change 3D globe basemap:', err);
     }
