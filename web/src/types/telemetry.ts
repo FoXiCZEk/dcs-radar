@@ -1,0 +1,122 @@
+export type Coalition = 'Blue' | 'Red' | 'Neutral' | 'Unknown';
+
+export type Category =
+  | 'AirFixedWing'
+  | 'AirRotor'
+  | 'Ground'
+  | 'Sea'
+  | 'Weapon'
+  | 'Navaid'
+  | 'Other';
+
+export interface Transform {
+  timeOffset: number;
+  timestamp: string;
+  longitude: number;
+  latitude: number;
+  altitude: number;
+  roll?: number;
+  pitch?: number;
+  yaw?: number;
+  heading?: number;
+  speedMS?: number;
+  speedKts?: number;
+}
+
+export interface ObjectEntity {
+  id: string;
+  name: string;
+  type: string;
+  category: Category;
+  coalition: Coalition;
+  color: string;
+  country?: string;
+  pilot?: string;
+  callsign?: string;
+  group?: string;
+  squawk?: string;
+  ias?: number;
+  tas?: number;
+  mach?: number;
+  aoa?: number;
+  currentTransform: Transform;
+  trail?: Transform[];
+  firstSeen: string;
+  lastSeen: string;
+  alive: boolean;
+  properties?: Record<string, string>;
+}
+
+export type EventType =
+  | 'Spawn'
+  | 'Despawn'
+  | 'WeaponLaunch'
+  | 'Impact'
+  | 'SpeedAnomaly'
+  | 'AltAnomaly'
+  | 'Destroyed'
+  | 'Comment';
+
+export interface TelemetryEvent {
+  id: string;
+  timestamp: string;
+  timeOffset: number;
+  type: EventType;
+  objectId: string;
+  objectName?: string;
+  targetId?: string;
+  targetName?: string;
+  description: string;
+  derived: boolean;
+  details?: Record<string, any>;
+}
+
+export interface SystemStatus {
+  sourceType: string;
+  connectionState: 'connected' | 'disconnected' | 'stale' | 'connecting';
+  lastReceived: string;
+  latencyMs: number;
+  objectCount: number;
+  coalitionCounts: Record<string, number>;
+  categoryCounts: Record<string, number>;
+  historyDurationMinutes: number;
+  historyStartTime: string;
+  historyEndTime: string;
+  totalHistoryRecords: number;
+  version: string;
+}
+
+export interface FilterSettings {
+  coalitions: Coalition[];
+  categories: Category[];
+  searchTerm: string;
+  minAltitude: number;
+  maxAltitude: number;
+  minSpeed: number;
+  maxSpeed: number;
+  showTrails: boolean;
+  showLabels: boolean;
+  trailLength: number;
+  selectedOnly: boolean;
+}
+
+export interface MapConfig {
+  defaultLat: number;
+  defaultLon: number;
+  defaultZoom: number;
+  tileUrl: string;
+  attribution: string;
+  cesiumIonToken?: string;
+  altitudeUnit: 'm' | 'ft';
+  speedUnit: 'kts' | 'kmh';
+  language: string;
+}
+
+export interface WSMessage {
+  type: 'snapshot' | 'delta';
+  timestamp: string;
+  timeOffset?: number;
+  referenceTime?: string;
+  objects?: ObjectEntity[];
+  events?: TelemetryEvent[];
+}

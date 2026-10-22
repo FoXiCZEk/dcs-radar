@@ -1,0 +1,21 @@
+FileType=text/acmi/tacview
+FileVersion=2.2
+0,ReferenceTime=2026-10-22T10:00:00Z,Title=DCS Caucasus Test Mission,DataRecorder=Tacview 1.8.8
+#0.00
+1001,T=41.50000|41.80000|6800.0|0.0|0.0|45.0,Name=F-16C Viper 1-1,Type=Air+FixedWing,Coalition=Allies,Color=Blue,Country=us,Pilot=Capt. Miller
+2001,T=42.25000|42.45000|7200.0|0.0|0.0|225.0,Name=Su-27 Flanker 2-1,Type=Air+FixedWing,Coalition=Enemies,Color=Red,Country=ru,Pilot=Maj. Ivanov
+2004,T=42.06000|42.24000|25.0|0.0|0.0|0.0,Name=SA-10 Grumble Radar,Type=Ground+Static+AntiAircraft,Coalition=Enemies,Color=Red,Country=ru
+#1.00
+1001,T=41.50200|41.80200|6805.0|15.0|2.0|46.0
+2001,T=42.24800|42.44800|7200.0|-20.0|-1.0|224.0
+#2.00
+1001,T=41.50400|41.80400|6810.0|15.0|2.0|46.0
+2001,T=42.24600|42.44600|7200.0|-20.0|-1.0|224.0
+#5.00
+3001,T=41.50500|41.80500|6810.0|0.0|5.0|50.0,Name=AIM-120C AMRAAM,Type=Weapon+Missile,Coalition=Allies,Color=Blue,Pilot=Auto-Guided
+#8.00
+3001,T=41.80000|42.05000|7000.0|0.0|10.0|52.0
+2001,T=42.20000|42.40000|7150.0|-45.0|5.0|210.0
+#12.00
+-3001
+-2001

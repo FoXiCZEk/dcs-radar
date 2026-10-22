@@ -1,0 +1,132 @@
+# ==============================================================================
+# DCS Radar - Vzorový konfigurační soubor (config.example.yaml)
+# ==============================================================================
+# Tento soubor obsahuje podrobný přehled a popis všech parametrů aplikace.
+# Pro aktivaci zkopírujte tento soubor jako config.yaml a upravte hodnoty dle potřeby.
+
+server:
+  # IP adresa rozhraní, na kterém backend naslouchá.
+  # "0.0.0.0" umožňuje přístup ze všech síťových rozhraní (doporučeno pro Docker).
+  host: "0.0.0.0"
+
+  # Port HTTP REST API a WebSocket serveru.
+  port: 8080
+
+  # Povolené domény pro CORS (Cross-Origin Resource Sharing).
+  # Použijte "*" pro neomezený přístup nebo specifikujte domény, např. ["https://radar.mojedoma.cz"].
+  allowed_origins:
+    - "*"
+
+  # Zda vyžadovat autentizaci pomocí Bearer tokenu pro přístup k API.
+  auth_enabled: false
+
+  # Tajný token v případě, že auth_enabled: true (např. "moje-tajne-heslo-123").
+  auth_token: ""
+
+telemetry:
+  # Typ vstupního zdroje telemetrie:
+  #   - "simulator": interní realistický simulátor vzdušných operací (Kavkaz).
+  #   - "tcp": přímé síťové připojení k Tacview Real-Time Telemetry serveru (DCS).
+  #   - "file": průběžné čtení aktivně zapisovaného souboru ACMI (.txt.acmi).
+  type: "simulator"
+
+  # Konfigurace pro typ: "tcp"
+  tcp:
+    # IP adresa nebo hostname serveru, kde běží DCS World s Tacview exporterem.
+    # Pokud běží na stejném serveru, použijte "127.0.0.1".
+    # Při provozu na oddělených serverech uveďte veřejnou nebo VPN IP adresu DCS serveru.
+    host: "127.0.0.1"
+
+    # Port Tacview Real-Time Telemetry exporteru (výchozí port Tacview je 42674).
+    port: 42674
+
+    # Heslo pro přístup k telemetrii (pokud je v Tacview nastaveno).
+    password: ""
+
+    # Identifikace našeho klienta odesílaná v handshake hlavičce.
+    client_name: "DCS-Radar"
+
+    # Interval v sekundách pro opakovaný pokus o připojení v případě výpadku.
+    reconnect_interval_sec: 5
+
+    # Síťový timeout v sekundách pro navázání a čtení spojení.
+    timeout_sec: 10
+
+  # Konfigurace pro typ: "file"
+  file:
+    # Přímá cesta k aktivnímu ACMI souboru (používá se při auto_detect_latest: false).
+    path: "./data/tacview/active.txt.acmi"
+
+    # Adresář se soubory záznamů mise DCS.
+    directory: "./data/tacview"
+
+    # Zda automaticky vyhledávat a sledovat nejnovější vytvořený soubor .txt.acmi v adresáři.
+    auto_detect_latest: true
+
+    # Interval kontroly nových přibývajících dat (v milisekundách).
+    poll_interval_ms: 250
+
+  # Konfigurace pro typ: "simulator"
+  simulator:
+    # Frekvence aktualizací simulátoru v Hertzích (5.0 = 5 aktualizací za sekundu).
+    update_rate_hz: 5.0
+
+    # Název scénáře (výchozí: "caucasus_dogfight").
+    scenario: "caucasus_dogfight"
+
+history:
+  # Doba uchovávání telemetrické historie v minutách (výchozí a doporučená hodnota: 60).
+  retention_minutes: 60
+
+  # Cesta k databázi SQLite pro ukládání historie telemetrie a událostí.
+  # V Docker kontejneru doporučujeme mapovat na persistentní volume (např. /data/history.db).
+  # Lze použít i ":memory:" pro čistě paměťové úložiště bez zápisu na disk.
+  db_path: "./data/history.db"
+
+  # Interval spouštění automatického úklidu dat starších než retention_minutes (v sekundách).
+  cleanup_interval_sec: 60
+
+  # Maximální počet bodů trajektorie uchovávaných v paměti na jeden objekt pro zobrazení stopy.
+  trail_max_points: 120
+
+map:
+  # Výchozí zeměpisné souřadnice středu mapy při načtení.
+  # Kavkaz: Šířka 42.15, Délka 41.80, Zoom 8.5
+  default_lat: 42.15
+  default_lon: 41.80
+  default_zoom: 8.5
+
+  # Šablona URL pro mapové dlaždice (XYZ rastr).
+  # Výchozí je rychlý a tmavý podklad CartoDB Dark Matter nevyžadující API klíč.
+  # Alternativy:
+  #   - Carto Dark: "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"
+  #   - Carto Positron: "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png"
+  #   - OpenStreetMap: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+  tile_url: "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"
+
+  # Povinná textová atribuce poskytovatele mapy zobrazená v rohu mapy.
+  attribution: "© OpenStreetMap přispěvatelé, © CARTO"
+
+  # Volitelný token Cesium Ion pro pokročilý 3D terén ve 3D zobrazení.
+  # Pokud není zadán, 3D režim používá výchozí zemský elipsoid WGS84 s mapovým podkladem.
+  cesium_ion_token: ""
+
+  # Výchozí jednotky pro zobrazení nadmořské výšky:
+  #   - "m": metry
+  #   - "ft": stopy
+  altitude_unit: "m"
+
+  # Výchozí jednotky pro zobrazení rychlosti:
+  #   - "kts": uzly (knots)
+  #   - "kmh": kilometry za hodinu
+  speed_unit: "kts"
+
+  # Výchozí jazyk uživatelského rozhraní ("cs" pro češtinu).
+  language: "cs"
+
+logging:
+  # Úroveň logování: "debug", "info", "warn", "error"
+  level: "info"
+
+  # Formát logování: "console" (čitelné textové logy) nebo "json" (strukturovaný JSON pro Loki/ELK)
+  format: "console"

@@ -1,0 +1,28 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+dcs-radar
+
+# Data & DB
+data/
+*.db
+*.db-wal
+*.db-shm
+*.acmi
+!server/testdata/*.acmi
+
+# Node
+node_modules/
+web/node_modules/
+web/dist/
+npm-debug.log*
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

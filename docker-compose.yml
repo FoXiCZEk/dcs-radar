@@ -1,0 +1,35 @@
+services:
+  dcs-radar:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dcs-radar
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mapování konfigurace (read-only)
+      - ./config.yaml:/app/config.yaml:ro
+      # Persistentní úložiště pro SQLite historii telemetrie (60 minut)
+      - radar_data:/app/data
+      # Volitelné mapování adresáře s ACMI soubory z DCS serveru (pokud je zvolen typ: "file")
+      # - /cesta/k/tacview/souborum:/data/tacview:ro
+    environment:
+      - TZ=Europe/Prague
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/v1/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    # Nastavení pro provoz za reverzní proxy Traefik (volitelné):
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.radar.rule=Host(`radar.vase-domena.cz`)"
+    #   - "traefik.http.routers.radar.entrypoints=websecure"
+    #   - "traefik.http.routers.radar.tls.certresolver=letsencrypt"
+    #   - "traefik.http.services.radar.loadbalancer.server.port=8080"
+
+volumes:
+  radar_data:
+    name: dcs_radar_data
