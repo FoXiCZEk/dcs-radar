@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useRadar } from '../../context/RadarContext';
-import { Category, Coalition } from '../../types/telemetry';
+import { Category, Coalition, MapStyleType } from '../../types/telemetry';
 import {
   Bookmark,
   Check,
@@ -24,6 +24,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ isOpen, onClose }) => 
     loadFilterPreset,
     availablePresets,
     mapConfig,
+    mapStyle,
+    setMapStyle,
   } = useRadar();
 
   const [newPresetName, setNewPresetName] = useState('');
@@ -274,6 +276,45 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ isOpen, onClose }) => 
                     backgroundColor: active ? 'rgba(56, 189, 248, 0.15)' : 'rgba(15, 23, 42, 0.5)',
                     color: active ? '#f8fafc' : '#64748b',
                     cursor: 'pointer',
+                  }}
+                >
+                  <span>{label}</span>
+                  {active && <Check size={12} color="#38bdf8" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Map Basemap Style */}
+        <div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, marginBottom: '6px' }}>
+            MAPOVÝ PODKLAD
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+            {[
+              { id: 'dark' as MapStyleType, label: 'Tmavá (Dark)' },
+              { id: 'satellite' as MapStyleType, label: 'Satelitní (ESRI)' },
+              { id: 'voyager' as MapStyleType, label: 'Voyager (Světlý)' },
+              { id: 'osm' as MapStyleType, label: 'OpenStreetMap' },
+            ].map(({ id, label }) => {
+              const active = mapStyle === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setMapStyle(id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '6px 8px',
+                    fontSize: '0.75rem',
+                    borderRadius: '4px',
+                    border: `1px solid ${active ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)'}`,
+                    backgroundColor: active ? 'rgba(56, 189, 248, 0.2)' : 'rgba(15, 23, 42, 0.5)',
+                    color: active ? '#38bdf8' : '#94a3b8',
+                    cursor: 'pointer',
+                    fontWeight: active ? 600 : 400,
                   }}
                 >
                   <span>{label}</span>

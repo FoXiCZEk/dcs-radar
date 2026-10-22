@@ -100,11 +100,14 @@ export interface FilterSettings {
   selectedOnly: boolean;
 }
 
+export type MapStyleType = 'dark' | 'satellite' | 'voyager' | 'osm';
+
 export interface MapConfig {
   defaultLat: number;
   defaultLon: number;
   defaultZoom: number;
   tileUrl: string;
+  satelliteTileUrl?: string;
   attribution: string;
   cesiumIonToken?: string;
   altitudeUnit: 'm' | 'ft';

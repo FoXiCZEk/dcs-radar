@@ -97,15 +97,18 @@ map:
   default_zoom: 8.5
 
   # Šablona URL pro mapové dlaždice (XYZ rastr).
-  # Výchozí je rychlý a tmavý podklad CartoDB Dark Matter nevyžadující API klíč.
+  # Výchozí taktická tmavá mapa Carto Dark s platným API klíčem.
   # Alternativy:
-  #   - Carto Dark: "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"
-  #   - Carto Positron: "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png"
+  #   - Carto Dark (s klíčem): "https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=cb1_330x_1_ffa23c299bbe502ba07a7c8a"
+  #   - Carto Voyager (s klíčem): "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_330x_1_ffa23c299bbe502ba07a7c8a"
   #   - OpenStreetMap: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-  tile_url: "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"
+  tile_url: "https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=cb1_330x_1_ffa23c299bbe502ba07a7c8a"
+
+  # Šablona URL pro satelitní mapu (ESRI World Imagery s vysokým rozlišením)
+  satellite_tile_url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
 
   # Povinná textová atribuce poskytovatele mapy zobrazená v rohu mapy.
-  attribution: "© OpenStreetMap přispěvatelé, © CARTO"
+  attribution: "© OpenStreetMap přispěvatelé, © CARTO, ESRI"
 
   # Volitelný token Cesium Ion pro pokročilý 3D terén ve 3D zobrazení.
   # Pokud není zadán, 3D režim používá výchozí zemský elipsoid WGS84 s mapovým podkladem.

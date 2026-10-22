@@ -3,9 +3,13 @@ import { useRadar } from '../../context/RadarContext';
 import {
   Activity,
   Box,
+  Compass,
+  Globe,
   Layers,
   Map as MapIcon,
+  Moon,
   Radio,
+  Satellite,
   SlidersHorizontal,
   Wifi,
   WifiOff,
@@ -26,7 +30,7 @@ export const SystemBar: React.FC<SystemBarProps> = ({
   isFiltersOpen,
   isEventsOpen,
 }) => {
-  const { status, wsState, viewMode, setViewMode, objects } = useRadar();
+  const { status, wsState, viewMode, setViewMode, objects, mapStyle, setMapStyle } = useRadar();
 
   const isConnected = wsState === 'connected' && status?.connectionState === 'connected';
   const isStale = status?.connectionState === 'stale';
@@ -167,6 +171,92 @@ export const SystemBar: React.FC<SystemBarProps> = ({
             }}
           >
             <Box size={14} /> 3D Glóbus
+          </button>
+        </div>
+
+        {/* Basemap Switcher */}
+        <div style={{
+          display: 'flex',
+          backgroundColor: 'rgba(15, 23, 42, 0.8)',
+          borderRadius: '6px',
+          border: '1px solid rgba(56, 189, 248, 0.3)',
+          overflow: 'hidden',
+        }}>
+          <button
+            onClick={() => setMapStyle('dark')}
+            title="Taktická tmavá mapa (Carto Dark)"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '6px 9px',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: mapStyle === 'dark' ? 'rgba(56, 189, 248, 0.25)' : 'transparent',
+              color: mapStyle === 'dark' ? '#38bdf8' : '#94a3b8',
+              transition: 'all 0.2s',
+            }}
+          >
+            <Moon size={13} /> Tmavá
+          </button>
+          <button
+            onClick={() => setMapStyle('satellite')}
+            title="Satelitní mapa (ESRI World Imagery)"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '6px 9px',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: mapStyle === 'satellite' ? 'rgba(56, 189, 248, 0.25)' : 'transparent',
+              color: mapStyle === 'satellite' ? '#38bdf8' : '#94a3b8',
+              transition: 'all 0.2s',
+            }}
+          >
+            <Satellite size={13} /> Satelit
+          </button>
+          <button
+            onClick={() => setMapStyle('voyager')}
+            title="Barevná podrobná mapa (Carto Voyager)"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '6px 9px',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: mapStyle === 'voyager' ? 'rgba(56, 189, 248, 0.25)' : 'transparent',
+              color: mapStyle === 'voyager' ? '#38bdf8' : '#94a3b8',
+              transition: 'all 0.2s',
+            }}
+          >
+            <Compass size={13} /> Voyager
+          </button>
+          <button
+            onClick={() => setMapStyle('osm')}
+            title="OpenStreetMap"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '6px 9px',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: mapStyle === 'osm' ? 'rgba(56, 189, 248, 0.25)' : 'transparent',
+              color: mapStyle === 'osm' ? '#38bdf8' : '#94a3b8',
+              transition: 'all 0.2s',
+            }}
+          >
+            <Globe size={13} /> OSM
           </button>
         </div>
 

@@ -63,12 +63,13 @@ type MapConfig struct {
 	DefaultLat     float64 `yaml:"default_lat" json:"defaultLat"`
 	DefaultLon     float64 `yaml:"default_lon" json:"defaultLon"`
 	DefaultZoom    float64 `yaml:"default_zoom" json:"defaultZoom"`
-	TileURL        string  `yaml:"tile_url" json:"tileUrl"`
-	Attribution    string  `yaml:"attribution" json:"attribution"`
-	CesiumIonToken string  `yaml:"cesium_ion_token" json:"cesiumIonToken"`
-	AltitudeUnit   string  `yaml:"altitude_unit" json:"altitudeUnit"` // "m" or "ft"
-	SpeedUnit      string  `yaml:"speed_unit" json:"speedUnit"`       // "kts" or "kmh"
-	Language       string  `yaml:"language" json:"language"`
+	TileURL          string  `yaml:"tile_url" json:"tileUrl"`
+	SatelliteTileURL string  `yaml:"satellite_tile_url" json:"satelliteTileUrl"`
+	Attribution      string  `yaml:"attribution" json:"attribution"`
+	CesiumIonToken   string  `yaml:"cesium_ion_token" json:"cesiumIonToken"`
+	AltitudeUnit     string  `yaml:"altitude_unit" json:"altitudeUnit"` // "m" or "ft"
+	SpeedUnit        string  `yaml:"speed_unit" json:"speedUnit"`       // "kts" or "kmh"
+	Language         string  `yaml:"language" json:"language"`
 }
 
 // LoggingConfig configures logging behavior.
@@ -127,9 +128,10 @@ func DefaultConfig() *Config {
 			DefaultLat:     42.15,
 			DefaultLon:     41.80,
 			DefaultZoom:    8.5,
-			TileURL:        "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png",
-			Attribution:    "© OpenStreetMap contributors, © CARTO",
-			CesiumIonToken: "",
+			TileURL:          "https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=cb1_330x_1_ffa23c299bbe502ba07a7c8a",
+			SatelliteTileURL: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+			Attribution:      "© OpenStreetMap contributors, © CARTO, ESRI",
+			CesiumIonToken:   "",
 			AltitudeUnit:   "m",
 			SpeedUnit:      "kts",
 			Language:       "cs",

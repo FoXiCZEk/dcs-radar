@@ -17,6 +17,7 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
     followSelected,
     filters,
     mapConfig,
+    mapStyle,
   } = useRadar();
 
   const isAltFt = mapConfig?.altitudeUnit === 'ft';
@@ -29,26 +30,72 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
     const defaultLat = mapConfig?.defaultLat || 42.15;
     const defaultLon = mapConfig?.defaultLon || 41.80;
     const defaultZoom = mapConfig?.defaultZoom || 8.5;
-    const tileUrl = mapConfig?.tileUrl || 'https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png';
-    const attribution = mapConfig?.attribution || '© OpenStreetMap, © CARTO';
+    const darkUrl = mapConfig?.tileUrl || 'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=cb1_330x_1_ffa23c299bbe502ba07a7c8a';
+    const satelliteUrl = mapConfig?.satelliteTileUrl || 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+    const voyagerUrl = 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_330x_1_ffa23c299bbe502ba07a7c8a';
+    const osmUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: {
         version: 8,
         sources: {
-          'carto-dark': {
+          'basemap-dark': {
             type: 'raster',
-            tiles: [tileUrl],
+            tiles: [darkUrl],
             tileSize: 256,
-            attribution: attribution,
+            attribution: '© OpenStreetMap přispěvatelé, © CARTO',
+          },
+          'basemap-satellite': {
+            type: 'raster',
+            tiles: [satelliteUrl],
+            tileSize: 256,
+            attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, USDA, USGS',
+            maxzoom: 19,
+          },
+          'basemap-voyager': {
+            type: 'raster',
+            tiles: [voyagerUrl],
+            tileSize: 256,
+            attribution: '© OpenStreetMap přispěvatelé, © CARTO',
+          },
+          'basemap-osm': {
+            type: 'raster',
+            tiles: [osmUrl],
+            tileSize: 256,
+            attribution: '© OpenStreetMap contributors',
           },
         },
         layers: [
           {
-            id: 'carto-dark-layer',
+            id: 'basemap-dark-layer',
             type: 'raster',
-            source: 'carto-dark',
+            source: 'basemap-dark',
+            layout: { visibility: mapStyle === 'dark' ? 'visible' : 'none' },
+            minzoom: 0,
+            maxzoom: 19,
+          },
+          {
+            id: 'basemap-satellite-layer',
+            type: 'raster',
+            source: 'basemap-satellite',
+            layout: { visibility: mapStyle === 'satellite' ? 'visible' : 'none' },
+            minzoom: 0,
+            maxzoom: 19,
+          },
+          {
+            id: 'basemap-voyager-layer',
+            type: 'raster',
+            source: 'basemap-voyager',
+            layout: { visibility: mapStyle === 'voyager' ? 'visible' : 'none' },
+            minzoom: 0,
+            maxzoom: 19,
+          },
+          {
+            id: 'basemap-osm-layer',
+            type: 'raster',
+            source: 'basemap-osm',
+            layout: { visibility: mapStyle === 'osm' ? 'visible' : 'none' },
             minzoom: 0,
             maxzoom: 19,
           },
@@ -159,6 +206,33 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
       mapRef.current = null;
     };
   }, [mapConfig]);
+
+  // Switch visible basemap layer on mapStyle change
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const applyVisibility = () => {
+      const layers = [
+        { id: 'basemap-dark-layer', style: 'dark' },
+        { id: 'basemap-satellite-layer', style: 'satellite' },
+        { id: 'basemap-voyager-layer', style: 'voyager' },
+        { id: 'basemap-osm-layer', style: 'osm' },
+      ];
+
+      layers.forEach(({ id, style }) => {
+        if (map.getLayer(id)) {
+          map.setLayoutProperty(id, 'visibility', mapStyle === style ? 'visible' : 'none');
+        }
+      });
+    };
+
+    if (map.isStyleLoaded()) {
+      applyVisibility();
+    } else {
+      map.once('load', applyVisibility);
+    }
+  }, [mapStyle]);
 
   // 2. Filter and update GeoJSON data
   useEffect(() => {

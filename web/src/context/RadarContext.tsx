@@ -4,6 +4,7 @@ import {
   Coalition,
   FilterSettings,
   MapConfig,
+  MapStyleType,
   ObjectEntity,
   SystemStatus,
   TelemetryEvent,
@@ -37,6 +38,8 @@ interface RadarContextType {
   wsState: WSConnectionState;
   viewMode: '2d' | '3d';
   mapConfig: MapConfig | null;
+  mapStyle: MapStyleType;
+  setMapStyle: (style: MapStyleType) => void;
 
   // Filters
   filters: FilterSettings;
@@ -75,6 +78,26 @@ export const RadarProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [wsState, setWsState] = useState<WSConnectionState>('disconnected');
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [mapConfig, setMapConfig] = useState<MapConfig | null>(null);
+  const [mapStyle, setMapStyleState] = useState<MapStyleType>(() => {
+    try {
+      const saved = localStorage.getItem('radar_map_style') as MapStyleType;
+      if (saved === 'dark' || saved === 'satellite' || saved === 'voyager' || saved === 'osm') {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'dark';
+  });
+
+  const setMapStyle = (style: MapStyleType) => {
+    setMapStyleState(style);
+    try {
+      localStorage.setItem('radar_map_style', style);
+    } catch {
+      // ignore
+    }
+  };
 
   // Selection
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
@@ -330,6 +353,8 @@ export const RadarProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         wsState,
         viewMode,
         mapConfig,
+        mapStyle,
+        setMapStyle,
         filters,
         setFilters,
         resetFilters,

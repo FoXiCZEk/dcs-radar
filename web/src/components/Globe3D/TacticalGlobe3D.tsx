@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as Cesium from 'cesium';
 import { useRadar } from '../../context/RadarContext';
+import { MapStyleType } from '../../types/telemetry';
 import { Crosshair, Eye, Zap } from 'lucide-react';
 
 export const TacticalGlobe3D: React.FC = () => {
@@ -15,9 +16,36 @@ export const TacticalGlobe3D: React.FC = () => {
     followSelected,
     filters,
     mapConfig,
+    mapStyle,
   } = useRadar();
 
   const [perfMode, setPerfMode] = useState<boolean>(false);
+
+  const createImageryProvider = (style: MapStyleType): Cesium.ImageryProvider => {
+    switch (style) {
+      case 'satellite':
+        return new Cesium.UrlTemplateImageryProvider({
+          url: mapConfig?.satelliteTileUrl || 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          credit: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, USDA, USGS',
+        });
+      case 'voyager':
+        return new Cesium.UrlTemplateImageryProvider({
+          url: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_330x_1_ffa23c299bbe502ba07a7c8a',
+          credit: '© OpenStreetMap přispěvatelé, © CARTO',
+        });
+      case 'osm':
+        return new Cesium.UrlTemplateImageryProvider({
+          url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          credit: '© OpenStreetMap contributors',
+        });
+      case 'dark':
+      default:
+        return new Cesium.UrlTemplateImageryProvider({
+          url: mapConfig?.tileUrl || 'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=cb1_330x_1_ffa23c299bbe502ba07a7c8a',
+          credit: '© OpenStreetMap přispěvatelé, © CARTO',
+        });
+    }
+  };
 
   // 1. Initialize Cesium Viewer
   useEffect(() => {
@@ -30,10 +58,7 @@ export const TacticalGlobe3D: React.FC = () => {
     const defaultLat = mapConfig?.defaultLat || 42.15;
     const defaultLon = mapConfig?.defaultLon || 41.80;
 
-    // Use OpenStreetMap imagery provider (no Cesium Ion token requirement!)
-    const imageryProvider = new Cesium.OpenStreetMapImageryProvider({
-      url: 'https://tile.openstreetmap.org/',
-    });
+    const imageryProvider = createImageryProvider(mapStyle);
 
     const viewer = new Cesium.Viewer(containerRef.current, {
       baseLayer: new Cesium.ImageryLayer(imageryProvider),
@@ -83,6 +108,20 @@ export const TacticalGlobe3D: React.FC = () => {
       viewerRef.current = null;
     };
   }, [mapConfig]);
+
+  // Switch imagery layer on mapStyle change
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    try {
+      viewer.imageryLayers.removeAll();
+      const provider = createImageryProvider(mapStyle);
+      viewer.imageryLayers.addImageryProvider(provider);
+    } catch (err) {
+      console.error('Failed to change 3D globe basemap:', err);
+    }
+  }, [mapStyle, mapConfig]);
 
   // 2. Render & update 3D entities
   useEffect(() => {

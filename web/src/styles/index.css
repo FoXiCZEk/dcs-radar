@@ -92,3 +92,13 @@ body {
 .cesium-viewer-bottom {
   display: none !important;
 }
+
+/* MapLibre controls positioning below topbar and above timeline */
+.maplibregl-ctrl-top-left {
+  top: 64px !important;
+  left: 10px !important;
+}
+.maplibregl-ctrl-bottom-left {
+  bottom: 84px !important;
+  left: 10px !important;
+}
