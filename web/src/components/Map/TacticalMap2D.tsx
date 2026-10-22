@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import { useRadar } from '../../context/RadarContext';
+import { PauseCircle, WifiOff, Radio, Server } from 'lucide-react';
 
 interface TacticalMap2DProps {
   onMapReady?: (map: maplibregl.Map) => void;
@@ -18,6 +19,7 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
     filters,
     mapConfig,
     mapStyle,
+    status,
   } = useRadar();
 
   const isAltFt = mapConfig?.altitudeUnit === 'ft';
@@ -365,18 +367,162 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
     }
   }, [objects, filters, selectedObjectId, followSelected, isAltFt, isSpeedKmh]);
 
+  const [isBannerDismissed, setIsBannerDismissed] = React.useState(false);
+
+  useEffect(() => {
+    setIsBannerDismissed(false);
+  }, [status?.connectionState]);
+
+  const connState = status?.connectionState || 'disconnected';
+  const showBanner = objects.length === 0 && !isBannerDismissed;
+
   return (
-    <div
-      ref={mapContainerRef}
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: '100%',
-        height: '100%',
-      }}
-    />
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div
+        ref={mapContainerRef}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100%',
+          height: '100%',
+        }}
+      />
+
+      {showBanner && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '80px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            pointerEvents: 'auto',
+            maxWidth: '560px',
+            width: '92%',
+          }}
+        >
+          <div
+            className="tactical-panel"
+            style={{
+              padding: '16px 20px',
+              backgroundColor: 'rgba(15, 23, 42, 0.92)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: '8px',
+              border: `1px solid ${
+                connState === 'connected'
+                  ? '#38bdf8'
+                  : connState === 'paused'
+                  ? '#eab308'
+                  : '#ef4444'
+              }`,
+              boxShadow: '0 20px 40px rgba(0,0,0,0.7)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {connState === 'paused' ? (
+                  <PauseCircle size={28} color="#facc15" style={{ flexShrink: 0 }} />
+                ) : connState === 'disconnected' ? (
+                  <WifiOff size={28} color="#f87171" style={{ flexShrink: 0 }} />
+                ) : (
+                  <Radio size={28} color="#38bdf8" style={{ flexShrink: 0 }} />
+                )}
+                <div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '0.04em' }}>
+                    {connState === 'paused'
+                      ? 'MISE DCS JE POZASTAVENA'
+                      : connState === 'disconnected'
+                      ? 'DCS SERVER NEPOSLOUCHÁ'
+                      : 'ČEKÁNÍ NA JEDNOTKY V MISI'}
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '3px', lineHeight: 1.4 }}>
+                    {connState === 'paused'
+                      ? 'Server i telemetrické porty jsou připraveny, ale mise je v DCS pozastavena. Jakmile misi v DCS odpausujete (klávesa Pause), telemetrie se okamžitě zobrazí.'
+                      : connState === 'disconnected'
+                      ? 'Nepodařilo se navázat spojení se serverem DCS (192.168.0.120). Zkontrolujte, zda běží DCS World a je spuštěn export Tacview.'
+                      : 'Spojení se serverem DCS je aktivní. V misi zatím nebyly detekovány žádné letouny ani pozemní cíle.'}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsBannerDismissed(true)}
+                title="Skrýt upozornění"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  fontSize: '1.2rem',
+                  lineHeight: 1,
+                  padding: '2px 6px',
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Ports Status Row */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '8px',
+                marginTop: '14px',
+                paddingTop: '12px',
+                borderTop: '1px solid rgba(255,255,255,0.08)',
+              }}
+            >
+              <div
+                style={{
+                  padding: '6px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Tacview Telemetrie</div>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: status?.dcsHealth?.tacviewPortOpen ? '#4ade80' : '#f87171' }}>
+                  :{status?.dcsHealth?.tacviewPort || 42674} {status?.dcsHealth?.tacviewPortOpen ? '● OTEVŘEN' : '○ ZAVŘEN'}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '6px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>DCS Herní Port</div>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: status?.dcsHealth?.gamePortOpen ? '#4ade80' : '#f87171' }}>
+                  :{status?.dcsHealth?.gamePort || 10308} {status?.dcsHealth?.gamePortOpen ? '● AKTIVNÍ' : '○ NEDOSTUPNÝ'}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '6px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>DCS-gRPC API</div>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: status?.dcsHealth?.grpcPortOpen ? '#4ade80' : '#f87171' }}>
+                  :{status?.dcsHealth?.grpcPort || 40051} {status?.dcsHealth?.grpcPortOpen ? '● DOSTUPNÝ' : '○ NEDOSTUPNÝ'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };

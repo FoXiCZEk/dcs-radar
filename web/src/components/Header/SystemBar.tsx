@@ -33,6 +33,7 @@ export const SystemBar: React.FC<SystemBarProps> = ({
   const { status, wsState, viewMode, setViewMode, objects, mapStyle, setMapStyle } = useRadar();
 
   const isConnected = wsState === 'connected' && status?.connectionState === 'connected';
+  const isPaused = status?.connectionState === 'paused' || status?.dcsHealth?.state === 'paused';
   const isStale = status?.connectionState === 'stale';
 
   const blueCount = objects.filter((o) => o.coalition === 'Blue').length;
@@ -66,18 +67,32 @@ export const SystemBar: React.FC<SystemBarProps> = ({
           gap: '6px',
           padding: '4px 10px',
           borderRadius: '20px',
-          backgroundColor: isConnected ? 'rgba(74, 222, 128, 0.1)' : isStale ? 'rgba(251, 191, 36, 0.1)' : 'rgba(248, 113, 113, 0.1)',
-          border: `1px solid ${isConnected ? 'rgba(74, 222, 128, 0.4)' : isStale ? 'rgba(251, 191, 36, 0.4)' : 'rgba(248, 113, 113, 0.4)'}`,
+          backgroundColor: isConnected
+            ? 'rgba(74, 222, 128, 0.1)'
+            : isPaused
+            ? 'rgba(251, 191, 36, 0.15)'
+            : isStale
+            ? 'rgba(251, 191, 36, 0.1)'
+            : 'rgba(248, 113, 113, 0.1)',
+          border: `1px solid ${
+            isConnected
+              ? 'rgba(74, 222, 128, 0.4)'
+              : isPaused
+              ? 'rgba(251, 191, 36, 0.5)'
+              : isStale
+              ? 'rgba(251, 191, 36, 0.4)'
+              : 'rgba(248, 113, 113, 0.4)'
+          }`,
           fontSize: '0.8rem',
         }}>
           <div style={{
             width: '8px',
             height: '8px',
             borderRadius: '50%',
-            backgroundColor: isConnected ? '#4ade80' : isStale ? '#fbbf24' : '#f87171',
+            backgroundColor: isConnected ? '#4ade80' : isPaused ? '#fbbf24' : isStale ? '#fbbf24' : '#f87171',
           }} className={isConnected ? 'radar-live-indicator' : ''} />
-          <span style={{ color: isConnected ? '#4ade80' : isStale ? '#fbbf24' : '#f87171', fontWeight: 600 }}>
-            {isConnected ? 'PŘIPOJENO' : isStale ? 'DATA ZASTARALÁ' : 'ODPOJENO'}
+          <span style={{ color: isConnected ? '#4ade80' : isPaused ? '#fbbf24' : isStale ? '#fbbf24' : '#f87171', fontWeight: 600 }}>
+            {isConnected ? 'PŘIPOJENO' : isPaused ? 'MISE POZASTAVENA' : isStale ? 'DATA ZASTARALÁ' : 'SERVER NEPOSLOUCHÁ'}
           </span>
           {status && status.latencyMs > 0 && (
             <span style={{ color: '#94a3b8', marginLeft: '4px' }}>({status.latencyMs} ms)</span>

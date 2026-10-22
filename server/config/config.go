@@ -22,6 +22,8 @@ type ServerConfig struct {
 type TCPSourceConfig struct {
 	Host                 string `yaml:"host"`
 	Port                 int    `yaml:"port"`
+	GamePort             int    `yaml:"game_port"` // Výchozí herní port DCS World (10308)
+	GRPCPort             int    `yaml:"grpc_port"` // Port DCS-gRPC serveru (40051)
 	Password             string `yaml:"password"`
 	ClientName           string `yaml:"client_name"`
 	ReconnectIntervalSec int    `yaml:"reconnect_interval_sec"`
@@ -98,10 +100,12 @@ func DefaultConfig() *Config {
 			AuthToken:      "",
 		},
 		Telemetry: TelemetryConfig{
-			Type: "simulator",
+			Type: "tcp",
 			TCP: TCPSourceConfig{
-				Host:                 "127.0.0.1",
+				Host:                 "192.168.0.120",
 				Port:                 42674,
+				GamePort:             10308,
+				GRPCPort:             40051,
 				Password:             "",
 				ClientName:           "DCS-Radar",
 				ReconnectIntervalSec: 5,

@@ -99,20 +99,34 @@ type Event struct {
 	Details     map[string]any `json:"details,omitempty"`
 }
 
+// DCSHealthStatus provides multi-port connectivity diagnostics for DCS World.
+type DCSHealthStatus struct {
+	TacviewPortOpen bool   `json:"tacviewPortOpen"`
+	GamePortOpen    bool   `json:"gamePortOpen"`
+	GRPCPortOpen    bool   `json:"grpcPortOpen"`
+	State           string `json:"state"` // "connected", "paused", "offline"
+	Message         string `json:"message"`
+	Host            string `json:"host"`
+	TacviewPort     int    `json:"tacviewPort"`
+	GamePort        int    `json:"gamePort"`
+	GRPCPort        int    `json:"grpcPort"`
+}
+
 // SystemStatus represents operational and health metrics.
 type SystemStatus struct {
-	SourceType             string         `json:"sourceType"`      // "tcp", "file", "simulator"
-	ConnectionState        string         `json:"connectionState"` // "connected", "disconnected", "stale", "connecting"
-	LastReceived           time.Time      `json:"lastReceived"`
-	LatencyMs              int64          `json:"latencyMs"`
-	ObjectCount            int            `json:"objectCount"`
-	CoalitionCounts        map[string]int `json:"coalitionCounts"`
-	CategoryCounts         map[string]int `json:"categoryCounts"`
-	HistoryDurationMinutes float64        `json:"historyDurationMinutes"`
-	HistoryStartTime       time.Time      `json:"historyStartTime"`
-	HistoryEndTime         time.Time      `json:"historyEndTime"`
-	TotalHistoryRecords    int64          `json:"totalHistoryRecords"`
-	Version                string         `json:"version"`
+	SourceType             string           `json:"sourceType"`      // "tcp", "file", "simulator"
+	ConnectionState        string           `json:"connectionState"` // "connected", "disconnected", "stale", "connecting", "paused"
+	LastReceived           time.Time        `json:"lastReceived"`
+	LatencyMs              int64            `json:"latencyMs"`
+	ObjectCount            int              `json:"objectCount"`
+	CoalitionCounts        map[string]int   `json:"coalitionCounts"`
+	CategoryCounts         map[string]int   `json:"categoryCounts"`
+	HistoryDurationMinutes float64          `json:"historyDurationMinutes"`
+	HistoryStartTime       time.Time        `json:"historyStartTime"`
+	HistoryEndTime         time.Time        `json:"historyEndTime"`
+	TotalHistoryRecords    int64            `json:"totalHistoryRecords"`
+	Version                string           `json:"version"`
+	DCSHealth              *DCSHealthStatus `json:"dcsHealth,omitempty"`
 }
 
 // ResolveCoalition maps Tacview coalition/color strings to standard Coalition enum.

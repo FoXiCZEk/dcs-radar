@@ -71,9 +71,21 @@ export interface TelemetryEvent {
   details?: Record<string, any>;
 }
 
+export interface DCSHealthStatus {
+  tacviewPortOpen: boolean;
+  gamePortOpen: boolean;
+  grpcPortOpen: boolean;
+  state: 'connected' | 'paused' | 'offline';
+  message: string;
+  host: string;
+  tacviewPort: number;
+  gamePort: number;
+  grpcPort: number;
+}
+
 export interface SystemStatus {
   sourceType: string;
-  connectionState: 'connected' | 'disconnected' | 'stale' | 'connecting';
+  connectionState: 'connected' | 'disconnected' | 'stale' | 'connecting' | 'paused';
   lastReceived: string;
   latencyMs: number;
   objectCount: number;
@@ -84,6 +96,7 @@ export interface SystemStatus {
   historyEndTime: string;
   totalHistoryRecords: number;
   version: string;
+  dcsHealth?: DCSHealthStatus;
 }
 
 export interface FilterSettings {

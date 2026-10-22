@@ -25,20 +25,24 @@ server:
 
 telemetry:
   # Typ vstupního zdroje telemetrie:
-  #   - "simulator": interní realistický simulátor vzdušných operací (Kavkaz).
   #   - "tcp": přímé síťové připojení k Tacview Real-Time Telemetry serveru (DCS).
   #   - "file": průběžné čtení aktivně zapisovaného souboru ACMI (.txt.acmi).
-  type: "simulator"
+  #   - "simulator": interní realistický simulátor vzdušných operací (Kavkaz).
+  type: "tcp"
 
   # Konfigurace pro typ: "tcp"
   tcp:
     # IP adresa nebo hostname serveru, kde běží DCS World s Tacview exporterem.
-    # Pokud běží na stejném serveru, použijte "127.0.0.1".
-    # Při provozu na oddělených serverech uveďte veřejnou nebo VPN IP adresu DCS serveru.
     host: "192.168.0.120"
 
     # Port Tacview Real-Time Telemetry exporteru (výchozí port Tacview je 42674).
     port: 42674
+
+    # Výchozí herní port DCS World pro ověření stavu běžícího serveru (výchozí 10308).
+    game_port: 10308
+
+    # Port rozhraní DCS-gRPC serveru (pokud je v DCS nainstalován mód dcs-grpc, např. 40051).
+    grpc_port: 40051
 
     # Heslo pro přístup k telemetrii (pokud je v Tacview nastaveno).
     password: ""

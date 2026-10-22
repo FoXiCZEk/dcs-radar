@@ -76,11 +76,62 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
             </div>
             <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.8)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <div>Zdroj: <strong style={{ color: '#f8fafc' }}>{status?.sourceType || 'neznámý'}</strong></div>
-              <div>Stav spojení: <strong style={{ color: status?.connectionState === 'connected' ? '#4ade80' : '#f87171' }}>{status?.connectionState || 'odpojeno'}</strong></div>
+              <div>Stav spojení: <strong style={{ color: status?.connectionState === 'connected' ? '#4ade80' : status?.connectionState === 'paused' ? '#facc15' : '#f87171' }}>
+                {status?.connectionState === 'connected' ? 'připojeno' : status?.connectionState === 'paused' ? 'pozastaveno' : 'odpojeno'}
+              </strong></div>
               <div>WebSocket: <strong style={{ color: wsState === 'connected' ? '#4ade80' : '#f87171' }}>{wsState}</strong></div>
               <div>Zpoždění (latence): <strong style={{ color: '#f8fafc' }}>{status?.latencyMs || 0} ms</strong></div>
               <div style={{ gridColumn: 'span 2' }}>
                 Poslední přijatý záznam: <strong style={{ color: '#f8fafc' }}>{status?.lastReceived ? new Date(status.lastReceived).toLocaleString('cs-CZ') : 'žádný'}</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: DCS Server & Ports Prober */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#38bdf8', fontWeight: 700, marginBottom: '8px' }}>
+              <Server size={16} /> MONITOROVÁNÍ DCS SERVERU A PORTŮ
+            </div>
+            <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.8)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Stav DCS Serveru:</span>
+                <span style={{
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  backgroundColor: status?.dcsHealth?.state === 'connected' ? 'rgba(34, 197, 94, 0.2)' : status?.dcsHealth?.state === 'paused' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                  color: status?.dcsHealth?.state === 'connected' ? '#4ade80' : status?.dcsHealth?.state === 'paused' ? '#facc15' : '#f87171',
+                  border: `1px solid ${status?.dcsHealth?.state === 'connected' ? '#22c55e' : status?.dcsHealth?.state === 'paused' ? '#eab308' : '#ef4444'}`
+                }}>
+                  {status?.dcsHealth?.message || (status?.connectionState === 'connected' ? 'Připojeno k DCS' : 'Nepřipojeno')}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '4px' }}>
+                <div style={{ padding: '8px', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Tacview Telemetrie</div>
+                  <div style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.8rem' }}>Port {status?.dcsHealth?.tacviewPort || 42674}</div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, marginTop: '2px', color: status?.dcsHealth?.tacviewPortOpen ? '#4ade80' : '#f87171' }}>
+                    {status?.dcsHealth?.tacviewPortOpen ? '● OTEVŘEN' : '○ ZAVŘEN'}
+                  </div>
+                </div>
+
+                <div style={{ padding: '8px', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>DCS Herní Port</div>
+                  <div style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.8rem' }}>Port {status?.dcsHealth?.gamePort || 10308}</div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, marginTop: '2px', color: status?.dcsHealth?.gamePortOpen ? '#4ade80' : '#f87171' }}>
+                    {status?.dcsHealth?.gamePortOpen ? '● AKTIVNÍ' : '○ NEDOSTUPNÝ'}
+                  </div>
+                </div>
+
+                <div style={{ padding: '8px', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>DCS-gRPC API</div>
+                  <div style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.8rem' }}>Port {status?.dcsHealth?.grpcPort || 40051}</div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, marginTop: '2px', color: status?.dcsHealth?.grpcPortOpen ? '#4ade80' : '#f87171' }}>
+                    {status?.dcsHealth?.grpcPortOpen ? '● DOSTUPNÝ' : '○ NEDOSTUPNÝ'}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

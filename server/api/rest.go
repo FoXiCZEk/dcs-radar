@@ -92,6 +92,20 @@ func (h *APIHandler) GetStatus(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 
+	var dcsHealth *models.DCSHealthStatus
+	if healthProvider, ok := h.source.(interface{ GetDCSHealth() *models.DCSHealthStatus }); ok {
+		dcsHealth = healthProvider.GetDCSHealth()
+		if dcsHealth != nil {
+			if dcsHealth.State == "paused" {
+				connState = "paused"
+			} else if dcsHealth.State == "offline" {
+				connState = "disconnected"
+			} else if dcsHealth.State == "connected" && h.source.IsConnected() {
+				connState = "connected"
+			}
+		}
+	}
+
 	histDurationMin := 0.0
 	if !histStart.IsZero() && !histEnd.IsZero() && histEnd.After(histStart) {
 		histDurationMin = histEnd.Sub(histStart).Minutes()
@@ -110,6 +124,7 @@ func (h *APIHandler) GetStatus(w http.ResponseWriter, _ *http.Request) {
 		HistoryEndTime:         histEnd,
 		TotalHistoryRecords:    histCount,
 		Version:                "1.0.0",
+		DCSHealth:              dcsHealth,
 	}
 
 	writeJSON(w, http.StatusOK, status)
