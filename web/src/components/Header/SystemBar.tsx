@@ -2,6 +2,8 @@ import React from 'react';
 import { useRadar } from '../../context/RadarContext';
 import {
   Activity,
+  Bell,
+  BellOff,
   Box,
   Compass,
   Globe,
@@ -30,7 +32,17 @@ export const SystemBar: React.FC<SystemBarProps> = ({
   isFiltersOpen,
   isEventsOpen,
 }) => {
-  const { status, wsState, viewMode, setViewMode, objects, mapStyle, setMapStyle } = useRadar();
+  const {
+    status,
+    wsState,
+    viewMode,
+    setViewMode,
+    objects,
+    mapStyle,
+    setMapStyle,
+    filters,
+    toggleMissileAlerts,
+  } = useRadar();
 
   const isConnected = wsState === 'connected' && status?.connectionState === 'connected';
   const isPaused = status?.connectionState === 'paused' || status?.dcsHealth?.state === 'paused';
@@ -112,6 +124,36 @@ export const SystemBar: React.FC<SystemBarProps> = ({
             textTransform: 'uppercase',
           }}>
             {status.sourceType === 'simulator' ? 'Simulátor Kavkaz' : status.sourceType === 'tcp' ? 'Tacview TCP' : 'ACMI Soubor'}
+          </span>
+        )}
+
+        {/* DCS Theater Badge */}
+        {status?.theatre && (
+          <span style={{
+            fontSize: '0.75rem',
+            padding: '3px 8px',
+            borderRadius: '4px',
+            backgroundColor: 'rgba(234, 179, 8, 0.15)',
+            color: '#facc15',
+            border: '1px solid rgba(234, 179, 8, 0.3)',
+            fontWeight: 700,
+          }}>
+            🗺️ {status.theatre}
+          </span>
+        )}
+
+        {/* Players Count Badge */}
+        {status?.playerCount !== undefined && status.playerCount > 0 && (
+          <span style={{
+            fontSize: '0.75rem',
+            padding: '3px 8px',
+            borderRadius: '4px',
+            backgroundColor: 'rgba(56, 189, 248, 0.15)',
+            color: '#38bdf8',
+            border: '1px solid rgba(56, 189, 248, 0.3)',
+            fontWeight: 600,
+          }}>
+            👥 {status.playerCount} {status.playerCount === 1 ? 'pilot' : status.playerCount < 5 ? 'piloti' : 'pilotů'}
           </span>
         )}
       </div>
@@ -313,6 +355,31 @@ export const SystemBar: React.FC<SystemBarProps> = ({
           }}
         >
           <Layers size={14} /> Události
+        </button>
+
+        {/* Missile Alerts Toggle Button */}
+        <button
+          onClick={toggleMissileAlerts}
+          title={
+            filters.missileAlertsEnabled
+              ? 'Výstrahy na odpálení raket jsou ZAPNUTY (kliknutím vypnout)'
+              : 'Výstrahy na odpálení raket jsou VYPNUTY (kliknutím zapnout)'
+          }
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '32px',
+            height: '32px',
+            borderRadius: '6px',
+            border: `1px solid ${filters.missileAlertsEnabled ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
+            backgroundColor: filters.missileAlertsEnabled ? 'rgba(239, 68, 68, 0.15)' : 'rgba(15, 23, 42, 0.8)',
+            color: filters.missileAlertsEnabled ? '#f87171' : '#64748b',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+        >
+          {filters.missileAlertsEnabled ? <Bell size={16} /> : <BellOff size={16} />}
         </button>
 
         {/* Diagnostics Button */}

@@ -97,6 +97,33 @@ export interface SystemStatus {
   totalHistoryRecords: number;
   version: string;
   dcsHealth?: DCSHealthStatus;
+  theatre?: string;
+  playerCount?: number;
+  missionTime?: string;
+}
+
+export interface DCSPlayer {
+  id: number;
+  name: string;
+  coalition: string;
+  ping: number;
+}
+
+export interface DCSWeather {
+  temperature: number;
+  pressureQNH: number;
+  windSpeed: number;
+  windHeading: number;
+}
+
+export interface BRAAData {
+  bearing: number;        // degrees (0-360)
+  rangeNM: number;        // Nautical Miles
+  rangeKm: number;        // Kilometers
+  altitudeM: number;      // target altitude in meters
+  altitudeFt: number;     // target altitude in feet
+  aspectAngle: number;    // 0 - 180 degrees
+  aspectLabel: 'HOT' | 'FLANK' | 'BEAM' | 'COLD';
 }
 
 export interface FilterSettings {
@@ -111,6 +138,9 @@ export interface FilterSettings {
   showLabels: boolean;
   trailLength: number;
   selectedOnly: boolean;
+  showThreatRings: boolean;
+  missileAlertsEnabled: boolean;
+  missileAlertAudio: boolean;
 }
 
 export type MapStyleType = 'dark' | 'satellite' | 'voyager' | 'osm';

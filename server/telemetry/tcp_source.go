@@ -23,6 +23,7 @@ type TCPSource struct {
 	connected    bool
 	lastReceived time.Time
 	lastHealth   models.DCSHealthStatus
+	grpcClient   *DCSGRPCClient
 	cancel       context.CancelFunc
 	done         chan struct{}
 }
@@ -39,11 +40,22 @@ func NewTCPSource(cfg config.TCPSourceConfig) *TCPSource {
 		cfg.TimeoutSec = 10
 	}
 
-	return &TCPSource{
-		cfg:    cfg,
-		parser: acmi.NewParser(),
-		done:   make(chan struct{}),
+	var grpcClient *DCSGRPCClient
+	if cfg.GRPCPort > 0 {
+		grpcClient = NewDCSGRPCClient(cfg.Host, cfg.GRPCPort)
 	}
+
+	return &TCPSource{
+		cfg:        cfg,
+		parser:     acmi.NewParser(),
+		grpcClient: grpcClient,
+		done:       make(chan struct{}),
+	}
+}
+
+// GetGRPCClient returns the active DCS-gRPC client instance.
+func (s *TCPSource) GetGRPCClient() *DCSGRPCClient {
+	return s.grpcClient
 }
 
 func (s *TCPSource) Type() string {
@@ -166,6 +178,11 @@ func (s *TCPSource) Start(ctx context.Context) (<-chan *acmi.ParsedRecord, <-cha
 
 	ctx, s.cancel = context.WithCancel(ctx)
 
+	// Start DCS-gRPC client loop
+	if s.grpcClient != nil {
+		s.grpcClient.Start()
+	}
+
 	// Initial immediate health probe
 	go s.ProbeHealth()
 
@@ -192,6 +209,9 @@ func (s *TCPSource) Start(ctx context.Context) (<-chan *acmi.ParsedRecord, <-cha
 func (s *TCPSource) Stop() error {
 	if s.cancel != nil {
 		s.cancel()
+	}
+	if s.grpcClient != nil {
+		s.grpcClient.Stop()
 	}
 	close(s.done)
 	s.setConnected(false)

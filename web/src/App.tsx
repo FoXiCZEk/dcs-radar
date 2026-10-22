@@ -9,6 +9,7 @@ import { ObjectDetail } from './components/Sidebar/ObjectDetail';
 import { FilterPanel } from './components/FilterPanel/FilterPanel';
 import { EventList } from './components/Events/EventList';
 import { DiagnosticsModal } from './components/Diagnostics/DiagnosticsModal';
+import { MissileAlertBanner } from './components/Alerts/MissileAlertBanner';
 
 const RadarApp: React.FC = () => {
   const { viewMode } = useRadar();
@@ -38,6 +39,9 @@ const RadarApp: React.FC = () => {
         onToggleEvents={() => setIsEventsOpen(!isEventsOpen)}
         onOpenDiagnostics={() => setIsDiagnosticsOpen(true)}
       />
+
+      {/* Tactical Missile Launch Warning Banner */}
+      <MissileAlertBanner />
 
       {/* Main Map / Globe Display */}
       <main style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }}>

@@ -133,6 +133,13 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
                   </div>
                 </div>
               </div>
+
+              {/* Extra DCS-gRPC Metadata Row */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '4px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: '0.75rem' }}>
+                <div>Mapa / Divadlo: <strong style={{ color: '#38bdf8' }}>{status?.theatre || 'Detekce...'}</strong></div>
+                <div>Aktivní piloti: <strong style={{ color: '#f8fafc' }}>{status?.playerCount || 0}</strong></div>
+                <div>Herní čas mise: <strong style={{ color: '#f8fafc' }}>{status?.missionTime ? new Date(status.missionTime).toLocaleTimeString('cs-CZ') : 'Čekání...'}</strong></div>
+              </div>
             </div>
           </div>
 

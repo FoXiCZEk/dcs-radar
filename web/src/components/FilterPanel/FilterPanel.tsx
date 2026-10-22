@@ -328,7 +328,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ isOpen, onClose }) => 
         {/* Display Toggles */}
         <div>
           <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, marginBottom: '6px' }}>
-            ZOBRAZENÍ PRVKŮ
+            ZOBRAZENÍ PRVKŮ & TAKTIKA
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
@@ -348,6 +348,47 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ isOpen, onClose }) => 
                 style={{ accentColor: '#38bdf8' }}
               />
               <span>Zobrazovat textové popisky u značek</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={filters.showThreatRings}
+                onChange={(e) => setFilters((p) => ({ ...p, showThreatRings: e.target.checked }))}
+                style={{ accentColor: '#38bdf8' }}
+              />
+              <span>Ohrožovací kružnice PVO (SAM Rings)</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Tactical Alerts */}
+        <div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, marginBottom: '6px' }}>
+            VÝSTRAHY A VAROVÁNÍ
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={filters.missileAlertsEnabled}
+                onChange={(e) => setFilters((p) => ({ ...p, missileAlertsEnabled: e.target.checked }))}
+                style={{ accentColor: '#ef4444' }}
+              />
+              <span style={{ color: filters.missileAlertsEnabled ? '#f87171' : '#94a3b8' }}>
+                Výstraha při odpálení raket
+              </span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={filters.missileAlertAudio}
+                disabled={!filters.missileAlertsEnabled}
+                onChange={(e) => setFilters((p) => ({ ...p, missileAlertAudio: e.target.checked }))}
+                style={{ accentColor: '#ef4444' }}
+              />
+              <span style={{ color: filters.missileAlertAudio && filters.missileAlertsEnabled ? '#f8fafc' : '#64748b' }}>
+                Zvukový signál výstrahy (Audio)
+              </span>
             </label>
           </div>
         </div>

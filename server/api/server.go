@@ -78,6 +78,9 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/history/export", s.apiHandler.ExportHistory)
 	mux.HandleFunc("/api/v1/events", s.apiHandler.GetEvents)
 	mux.HandleFunc("/api/v1/config", s.apiHandler.GetPublicConfig)
+	mux.HandleFunc("/api/v1/dcs/players", s.apiHandler.GetDCSPlayers)
+	mux.HandleFunc("/api/v1/dcs/weather", s.apiHandler.GetDCSWeather)
+	mux.HandleFunc("/api/v1/dcs/chat", s.apiHandler.SendDCSChat)
 
 	// Static SPA Frontend Handler
 	staticDir := s.findWebDistDir()

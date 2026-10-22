@@ -1,7 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import { useRadar } from '../../context/RadarContext';
-import { PauseCircle, WifiOff, Radio, Server } from 'lucide-react';
+import { PauseCircle, WifiOff, Radio, Server, Maximize2 } from 'lucide-react';
+import { getSAMProfile, createGeoJSONCircle } from '../../utils/samDatabase';
+import { calculateBRAA, THEATER_BULLSEYE } from '../../utils/braa';
 
 interface TacticalMap2DProps {
   onMapReady?: (map: maplibregl.Map) => void;
@@ -14,6 +16,9 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
   const {
     objects,
     selectedObjectId,
+    selectedObject,
+    referenceObjectId,
+    referenceObject,
     selectObject,
     followSelected,
     filters,
@@ -179,6 +184,86 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
           'text-color': '#f8fafc',
           'text-halo-color': '#0a0f1d',
           'text-halo-width': 1.5,
+        },
+      });
+
+      // 3. SAM Threat Rings source and layers
+      map.addSource('sam-rings-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.addLayer({
+        id: 'sam-rings-fill',
+        type: 'fill',
+        source: 'sam-rings-source',
+        paint: {
+          'fill-color': ['get', 'color'],
+          'fill-opacity': 0.08,
+        },
+      });
+
+      map.addLayer({
+        id: 'sam-rings-line',
+        type: 'line',
+        source: 'sam-rings-source',
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 1.5,
+          'line-dasharray': [4, 2],
+          'line-opacity': 0.75,
+        },
+      });
+
+      map.addLayer({
+        id: 'sam-rings-labels',
+        type: 'symbol',
+        source: 'sam-rings-source',
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 10,
+          'symbol-placement': 'point',
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': ['get', 'color'],
+          'text-halo-color': '#0a0f1d',
+          'text-halo-width': 1.5,
+        },
+      });
+
+      // 4. BRAA vector measurement source and layers
+      map.addSource('braa-vector-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.addLayer({
+        id: 'braa-vector-line',
+        type: 'line',
+        source: 'braa-vector-source',
+        paint: {
+          'line-color': '#facc15',
+          'line-width': 2,
+          'line-dasharray': [3, 2],
+          'line-opacity': 0.9,
+        },
+      });
+
+      map.addLayer({
+        id: 'braa-vector-label',
+        type: 'symbol',
+        source: 'braa-vector-source',
+        layout: {
+          'text-field': ['get', 'braaLabel'],
+          'text-size': 11,
+          'symbol-placement': 'point',
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': '#facc15',
+          'text-halo-color': '#0a0f1d',
+          'text-halo-width': 2,
         },
       });
 
@@ -355,7 +440,103 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
       });
     }
 
-    // 3. Camera follow mode
+    // 3. SAM Threat Rings GeoJSON
+    const samFeatures: any[] = [];
+    if (filters.showThreatRings) {
+      filteredObjects.forEach((obj) => {
+        if (!obj.alive) return;
+        const profile = getSAMProfile(obj.type, obj.name);
+        if (profile) {
+          const coords = createGeoJSONCircle(
+            obj.currentTransform.longitude,
+            obj.currentTransform.latitude,
+            profile.engagementRangeKm
+          );
+          const color =
+            obj.coalition === 'Red'
+              ? '#ef4444'
+              : obj.coalition === 'Blue'
+              ? '#38bdf8'
+              : '#4ade80';
+
+          samFeatures.push({
+            type: 'Feature',
+            properties: {
+              label: `${profile.natoName} • ${profile.engagementRangeNM} NM`,
+              color,
+            },
+            geometry: {
+              type: 'Polygon',
+              coordinates: [coords],
+            },
+          });
+        }
+      });
+    }
+
+    const samSource = map.getSource('sam-rings-source') as maplibregl.GeoJSONSource;
+    if (samSource) {
+      samSource.setData({
+        type: 'FeatureCollection',
+        features: samFeatures,
+      });
+    }
+
+    // 4. Tactical BRAA Vector
+    const braaFeatures: any[] = [];
+    if (referenceObject && selectedObject && referenceObject.id !== selectedObject.id) {
+      const braa = calculateBRAA(
+        {
+          latitude: referenceObject.currentTransform.latitude,
+          longitude: referenceObject.currentTransform.longitude,
+          altitude: referenceObject.currentTransform.altitude,
+          heading: referenceObject.currentTransform.heading || referenceObject.currentTransform.yaw || 0,
+        },
+        {
+          latitude: selectedObject.currentTransform.latitude,
+          longitude: selectedObject.currentTransform.longitude,
+          altitude: selectedObject.currentTransform.altitude,
+          heading: selectedObject.currentTransform.heading || selectedObject.currentTransform.yaw || 0,
+        }
+      );
+
+      // Line connecting reference to selected
+      braaFeatures.push({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [referenceObject.currentTransform.longitude, referenceObject.currentTransform.latitude],
+            [selectedObject.currentTransform.longitude, selectedObject.currentTransform.latitude],
+          ],
+        },
+      });
+
+      // Midpoint measurement label
+      const midLon = (referenceObject.currentTransform.longitude + selectedObject.currentTransform.longitude) / 2;
+      const midLat = (referenceObject.currentTransform.latitude + selectedObject.currentTransform.latitude) / 2;
+      const braaLabel = `BRAA: ${braa.bearing.toString().padStart(3, '0')}° / ${braa.rangeNM} NM / ${Math.round(braa.altitudeFt / 1000)}k • ${braa.aspectLabel}`;
+
+      braaFeatures.push({
+        type: 'Feature',
+        properties: { braaLabel },
+        geometry: {
+          type: 'Point',
+          coordinates: [midLon, midLat],
+        },
+      });
+    }
+
+    const braaSource = map.getSource('braa-vector-source') as maplibregl.GeoJSONSource;
+    if (braaSource) {
+      braaSource.setData({
+        type: 'FeatureCollection',
+        features: braaFeatures,
+      });
+    }
+
+    // 5. Camera follow mode
     if (followSelected && selectedObjectId) {
       const selected = objects.find((o) => o.id === selectedObjectId);
       if (selected) {
@@ -365,7 +546,7 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
         });
       }
     }
-  }, [objects, filters, selectedObjectId, followSelected, isAltFt, isSpeedKmh]);
+  }, [objects, filters, selectedObjectId, referenceObject, selectedObject, followSelected, isAltFt, isSpeedKmh]);
 
   const [isBannerDismissed, setIsBannerDismissed] = React.useState(false);
 
@@ -375,6 +556,43 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
 
   const connState = status?.connectionState || 'disconnected';
   const showBanner = objects.length === 0 && !isBannerDismissed;
+
+  const handleFitTheater = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (objects.length > 0) {
+      let minLon = 180, maxLon = -180, minLat = 90, maxLat = -90;
+      objects.forEach((o) => {
+        const lon = o.currentTransform.longitude;
+        const lat = o.currentTransform.latitude;
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      });
+      if (minLon <= maxLon && minLat <= maxLat) {
+        map.fitBounds(
+          [
+            [minLon - 0.05, minLat - 0.05],
+            [maxLon + 0.05, maxLat + 0.05],
+          ],
+          { padding: 80, duration: 800 }
+        );
+        return;
+      }
+    }
+    const th = status?.theatre;
+    if (th && THEATER_BULLSEYE[th]) {
+      const b = THEATER_BULLSEYE[th];
+      map.easeTo({ center: [b.lon, b.lat], zoom: 8, duration: 800 });
+    } else {
+      map.easeTo({
+        center: [mapConfig?.defaultLon || 41.80, mapConfig?.defaultLat || 42.15],
+        zoom: 8.5,
+        duration: 800,
+      });
+    }
+  };
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -523,6 +741,34 @@ export const TacticalMap2D: React.FC<TacticalMap2DProps> = ({ onMapReady }) => {
           </div>
         </div>
       )}
+
+      {/* Floating Tactical Auto-Fit Theater Button */}
+      <button
+        onClick={handleFitTheater}
+        title="Vycentrovat kameru na aktivní jednotky / bojiště"
+        style={{
+          position: 'absolute',
+          bottom: '75px',
+          right: '16px',
+          zIndex: 15,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '8px 14px',
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid #38bdf8',
+          borderRadius: '6px',
+          color: '#38bdf8',
+          fontSize: '0.78rem',
+          fontWeight: 700,
+          cursor: 'pointer',
+          boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+          transition: 'all 0.2s',
+        }}
+      >
+        <Maximize2 size={15} /> Vycentrovat bojiště
+      </button>
     </div>
   );
 };

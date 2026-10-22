@@ -13,6 +13,8 @@ import {
 import { fetchHistoryRange, fetchHistorySnapshot, fetchPublicConfig, fetchStatus } from '../services/api';
 import { WebSocketClient, WSConnectionState } from '../services/websocket';
 
+import { playMissileAlertTone } from '../utils/audioAlert';
+
 const DEFAULT_FILTERS: FilterSettings = {
   coalitions: ['Blue', 'Red', 'Neutral', 'Unknown'],
   categories: ['AirFixedWing', 'AirRotor', 'Ground', 'Sea', 'Weapon', 'Navaid', 'Other'],
@@ -25,6 +27,9 @@ const DEFAULT_FILTERS: FilterSettings = {
   showLabels: true,
   trailLength: 60,
   selectedOnly: false,
+  showThreatRings: true,
+  missileAlertsEnabled: true,
+  missileAlertAudio: true,
 };
 
 interface RadarContextType {
@@ -32,6 +37,9 @@ interface RadarContextType {
   objects: ObjectEntity[];
   selectedObjectId: string | null;
   selectedObject: ObjectEntity | null;
+  referenceObjectId: string | null;
+  referenceObject: ObjectEntity | null;
+  setReferenceObjectId: (id: string | null) => void;
   followSelected: boolean;
   events: TelemetryEvent[];
   status: SystemStatus | null;
@@ -40,6 +48,11 @@ interface RadarContextType {
   mapConfig: MapConfig | null;
   mapStyle: MapStyleType;
   setMapStyle: (style: MapStyleType) => void;
+
+  // Missile Alerts
+  activeMissiles: ObjectEntity[];
+  toggleMissileAlerts: () => void;
+  toggleMissileAudio: () => void;
 
   // Filters
   filters: FilterSettings;
@@ -101,7 +114,9 @@ export const RadarProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Selection
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const [referenceObjectId, setReferenceObjectId] = useState<string | null>(null);
   const [followSelected, setFollowSelected] = useState<boolean>(false);
+  const prevWeaponsRef = useRef<Set<string>>(new Set());
 
   // Filters from LocalStorage fallback
   const [filters, setFilters] = useState<FilterSettings>(() => {
@@ -337,9 +352,53 @@ export const RadarProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     ? Array.from(liveObjectsMap.values())
     : historicalObjects;
 
-  // Selected object entity
+  // Selected and reference object entities
   const selectedObject =
     effectiveObjectsList.find((o) => o.id === selectedObjectId) || null;
+  const referenceObject =
+    effectiveObjectsList.find((o) => o.id === referenceObjectId) || null;
+
+  // Active missiles calculation (weapons alive with speed > 80 kts)
+  const activeMissiles = effectiveObjectsList.filter(
+    (o) => o.category === 'Weapon' && o.alive && (o.currentTransform.speedKts || 0) > 80
+  );
+
+  // Trigger alert when new missile is detected
+  useEffect(() => {
+    if (!filters.missileAlertsEnabled) return;
+    const currentWeaponIds = new Set(activeMissiles.map((m) => m.id));
+    let hasNewMissile = false;
+    currentWeaponIds.forEach((id) => {
+      if (!prevWeaponsRef.current.has(id)) {
+        hasNewMissile = true;
+      }
+    });
+    prevWeaponsRef.current = currentWeaponIds;
+
+    if (hasNewMissile && filters.missileAlertAudio) {
+      playMissileAlertTone();
+    }
+  }, [activeMissiles, filters.missileAlertsEnabled, filters.missileAlertAudio]);
+
+  const toggleMissileAlerts = () => {
+    setFilters((prev) => {
+      const next = { ...prev, missileAlertsEnabled: !prev.missileAlertsEnabled };
+      try {
+        localStorage.setItem('radar_filters_active', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const toggleMissileAudio = () => {
+    setFilters((prev) => {
+      const next = { ...prev, missileAlertAudio: !prev.missileAlertAudio };
+      try {
+        localStorage.setItem('radar_filters_active', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
 
   return (
     <RadarContext.Provider
@@ -347,6 +406,9 @@ export const RadarProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         objects: effectiveObjectsList,
         selectedObjectId,
         selectedObject,
+        referenceObjectId,
+        referenceObject,
+        setReferenceObjectId,
         followSelected,
         events,
         status,
@@ -355,6 +417,9 @@ export const RadarProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         mapConfig,
         mapStyle,
         setMapStyle,
+        activeMissiles,
+        toggleMissileAlerts,
+        toggleMissileAudio,
         filters,
         setFilters,
         resetFilters,

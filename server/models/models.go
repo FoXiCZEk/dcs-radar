@@ -127,6 +127,35 @@ type SystemStatus struct {
 	TotalHistoryRecords    int64            `json:"totalHistoryRecords"`
 	Version                string           `json:"version"`
 	DCSHealth              *DCSHealthStatus `json:"dcsHealth,omitempty"`
+	Theatre                string           `json:"theatre,omitempty"`
+	PlayerCount            int              `json:"playerCount,omitempty"`
+	MissionTime            string           `json:"missionTime,omitempty"`
+}
+
+// DCSPlayer represents a connected pilot or player from DCS-gRPC.
+type DCSPlayer struct {
+	ID        uint32 `json:"id"`
+	Name      string `json:"name"`
+	Coalition string `json:"coalition"`
+	Ping      int64  `json:"ping"`
+}
+
+// DCSAirbase represents an airfield queried via DCS-gRPC.
+type DCSAirbase struct {
+	ID        uint32    `json:"id"`
+	Name      string    `json:"name"`
+	Coalition Coalition `json:"coalition"`
+	Latitude  float64   `json:"latitude"`
+	Longitude float64   `json:"longitude"`
+	Altitude  float64   `json:"altitude"`
+}
+
+// DCSWeather represents current atmospheric state.
+type DCSWeather struct {
+	Temperature float64 `json:"temperature"` // Celsius
+	PressureQNH float64 `json:"pressureQNH"` // hPa (QNH)
+	WindSpeed   float64 `json:"windSpeed"`   // m/s
+	WindHeading float64 `json:"windHeading"` // degrees
 }
 
 // ResolveCoalition maps Tacview coalition/color strings to standard Coalition enum.

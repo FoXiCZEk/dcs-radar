@@ -106,6 +106,17 @@ func (h *APIHandler) GetStatus(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 
+	var theatre string
+	var playerCount int
+	var missionTime string
+	if grpcProvider, ok := h.source.(interface{ GetGRPCClient() *telemetry.DCSGRPCClient }); ok {
+		if gc := grpcProvider.GetGRPCClient(); gc != nil {
+			theatre = gc.GetTheatre()
+			playerCount = len(gc.GetPlayers())
+			missionTime = gc.GetMissionTime()
+		}
+	}
+
 	histDurationMin := 0.0
 	if !histStart.IsZero() && !histEnd.IsZero() && histEnd.After(histStart) {
 		histDurationMin = histEnd.Sub(histStart).Minutes()
@@ -125,9 +136,67 @@ func (h *APIHandler) GetStatus(w http.ResponseWriter, _ *http.Request) {
 		TotalHistoryRecords:    histCount,
 		Version:                "1.0.0",
 		DCSHealth:              dcsHealth,
+		Theatre:                theatre,
+		PlayerCount:            playerCount,
+		MissionTime:            missionTime,
 	}
 
 	writeJSON(w, http.StatusOK, status)
+}
+
+// GetDCSPlayers returns active players queried from DCS-gRPC.
+func (h *APIHandler) GetDCSPlayers(w http.ResponseWriter, _ *http.Request) {
+	if grpcProvider, ok := h.source.(interface{ GetGRPCClient() *telemetry.DCSGRPCClient }); ok {
+		if gc := grpcProvider.GetGRPCClient(); gc != nil {
+			players := gc.GetPlayers()
+			writeJSON(w, http.StatusOK, map[string]any{
+				"players": players,
+				"count":   len(players),
+			})
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"players": []models.DCSPlayer{}, "count": 0})
+}
+
+// GetDCSWeather returns atmospheric environment parameters from DCS-gRPC.
+func (h *APIHandler) GetDCSWeather(w http.ResponseWriter, _ *http.Request) {
+	if grpcProvider, ok := h.source.(interface{ GetGRPCClient() *telemetry.DCSGRPCClient }); ok {
+		if gc := grpcProvider.GetGRPCClient(); gc != nil {
+			weather := gc.GetWeather()
+			if weather != nil {
+				writeJSON(w, http.StatusOK, weather)
+				return
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "unavailable"})
+}
+
+// SendDCSChat broadcasts a text message into the DCS multiplayer chat.
+func (h *APIHandler) SendDCSChat(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "Pouze POST metoda je podporována")
+		return
+	}
+	var req struct {
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Message == "" {
+		writeError(w, http.StatusBadRequest, "Chybí text zprávy")
+		return
+	}
+	if grpcProvider, ok := h.source.(interface{ GetGRPCClient() *telemetry.DCSGRPCClient }); ok {
+		if gc := grpcProvider.GetGRPCClient(); gc != nil {
+			if err := gc.SendChatMessage(req.Message); err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
+			return
+		}
+	}
+	writeError(w, http.StatusServiceUnavailable, "DCS-gRPC spojení není aktivní")
 }
 
 // GetObjects returns all active objects.

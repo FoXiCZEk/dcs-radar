@@ -6,12 +6,15 @@ import {
   Download,
   Eye,
   Gauge,
+  MapPin,
   Navigation,
   Shield,
+  Target,
   User,
   X,
 } from 'lucide-react';
 import { getExportUrl } from '../../services/api';
+import { calculateBRAA, calculateBullseye, THEATER_BULLSEYE } from '../../utils/braa';
 
 interface ObjectDetailProps {
   onCenterObject: (lat: number, lon: number) => void;
@@ -21,10 +24,14 @@ export const ObjectDetail: React.FC<ObjectDetailProps> = ({ onCenterObject }) =>
   const {
     selectedObject,
     selectObject,
+    referenceObjectId,
+    referenceObject,
+    setReferenceObjectId,
     followSelected,
     toggleFollowSelected,
     events,
     mapConfig,
+    status,
   } = useRadar();
 
   if (!selectedObject) return null;
@@ -174,6 +181,67 @@ export const ObjectDetail: React.FC<ObjectDetailProps> = ({ onCenterObject }) =>
           </div>
         </div>
 
+        {/* Bullseye Reference */}
+        {(() => {
+          const th = status?.theatre || 'Caucasus';
+          const bullseyeRef = THEATER_BULLSEYE[th] || THEATER_BULLSEYE['Caucasus'];
+          const bullseyeString = calculateBullseye(tr.latitude, tr.longitude, bullseyeRef.lat, bullseyeRef.lon);
+          return (
+            <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.7)', padding: '8px 10px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <div style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <MapPin size={12} color="#38bdf8" /> POLOHA VŮČI BULLSEYE ({bullseyeRef.name})
+              </div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f8fafc', marginTop: '2px', letterSpacing: '0.04em' }}>
+                {bullseyeString}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Tactical BRAA Panel if reference object exists */}
+        {(() => {
+          if (!referenceObject || referenceObject.id === selectedObject.id) return null;
+          const braaFromRef = calculateBRAA(
+            {
+              latitude: referenceObject.currentTransform.latitude,
+              longitude: referenceObject.currentTransform.longitude,
+              altitude: referenceObject.currentTransform.altitude,
+              heading: referenceObject.currentTransform.heading || referenceObject.currentTransform.yaw || 0,
+            },
+            {
+              latitude: tr.latitude,
+              longitude: tr.longitude,
+              altitude: tr.altitude,
+              heading: tr.heading || tr.yaw || 0,
+            }
+          );
+          return (
+            <div style={{ backgroundColor: 'rgba(234, 179, 8, 0.1)', padding: '10px', borderRadius: '6px', border: '1px solid #eab308' }}>
+              <div style={{ fontSize: '0.72rem', color: '#facc15', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Target size={13} color="#facc15" /> TAKTICKÁ BRAA (Z {referenceObject.name || referenceObject.type})
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginTop: '6px', fontSize: '0.8rem' }}>
+                <div>Kurz: <strong style={{ color: '#f8fafc' }}>{braaFromRef.bearing.toString().padStart(3, '0')}°</strong></div>
+                <div>Vzdálenost: <strong style={{ color: '#f8fafc' }}>{braaFromRef.rangeNM} NM</strong></div>
+                <div>Výška: <strong style={{ color: '#f8fafc' }}>{Math.round(braaFromRef.altitudeFt / 1000)}k ft</strong></div>
+                <div>
+                  Aspekt:{' '}
+                  <span style={{
+                    padding: '1px 5px',
+                    borderRadius: '3px',
+                    fontWeight: 800,
+                    fontSize: '0.72rem',
+                    backgroundColor: braaFromRef.aspectLabel === 'HOT' ? 'rgba(239, 68, 68, 0.3)' : braaFromRef.aspectLabel === 'BEAM' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(56, 189, 248, 0.3)',
+                    color: braaFromRef.aspectLabel === 'HOT' ? '#f87171' : braaFromRef.aspectLabel === 'BEAM' ? '#facc15' : '#38bdf8',
+                  }}>
+                    {braaFromRef.aspectLabel} ({braaFromRef.aspectAngle}°)
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Coordinates */}
         <div style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <div>Zem. šířka (Lat): <strong style={{ color: '#f8fafc' }}>{tr.latitude.toFixed(5)}°</strong></div>
@@ -183,6 +251,27 @@ export const ObjectDetail: React.FC<ObjectDetailProps> = ({ onCenterObject }) =>
 
         {/* Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {/* Reference Aircraft Toggle for BRAA */}
+          <button
+            onClick={() => setReferenceObjectId(referenceObjectId === selectedObject.id ? null : selectedObject.id)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '8px',
+              borderRadius: '6px',
+              border: `1px solid ${referenceObjectId === selectedObject.id ? '#eab308' : 'rgba(234, 179, 8, 0.4)'}`,
+              backgroundColor: referenceObjectId === selectedObject.id ? 'rgba(234, 179, 8, 0.2)' : 'rgba(15, 23, 42, 0.8)',
+              color: referenceObjectId === selectedObject.id ? '#facc15' : '#fef08a',
+              fontWeight: 600,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+            }}
+          >
+            <Target size={14} /> {referenceObjectId === selectedObject.id ? '✓ Referenční letoun (Zrušit)' : 'Nastavit jako referenční letoun (BRAA)'}
+          </button>
+
           <button
             onClick={() => onCenterObject(tr.latitude, tr.longitude)}
             style={{
