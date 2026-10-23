@@ -1,0 +1,94 @@
+# ==============================================================================
+# GitLab CI/CD Pipeline: Build Docker Image & Push to Docker Hub
+# ==============================================================================
+#
+# Požadované proměnné v GitLabu (Settings -> CI/CD -> Variables):
+#   - DOCKERHUB_USERNAME : Vaše uživatelské jméno na Docker Hubu (např. "jan_novak")
+#   - DOCKERHUB_TOKEN    : Přístupový token z Docker Hubu (Account Settings -> Security -> New Access Token)
+#   - DOCKERHUB_IMAGE    : (Volitelné) Název repozitáře na Docker Hubu, výchozí: "$DOCKERHUB_USERNAME/discord-games-bot"
+#
+# Pipeline automaticky:
+#   1. Přihlásí se k Docker Hubu pomocí tokenu
+#   2. Sestaví optimalizovaný multi-stage Docker image
+#   3. Využije cache z předchozího buildu pro maximální rychlost
+#   4. Otaguje a odešle (push):
+#      - :latest (při pushi do hlavní větve main/master)
+#      - :<commit_sha> (pro dohledatelnost každého buildu)
+#      - :<tag> (při vytvoření git tagu / vydání nové verze)
+# ==============================================================================
+
+stages:
+  - build-and-push
+
+variables:
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_DRIVER: overlay2
+  IMAGE_NAME: "${DOCKERHUB_USERNAME}/dcs-radar"
+
+build-dockerhub:
+  stage: build-and-push
+  image: docker:26-cli
+  services:
+    - docker:26-dind
+  rules:
+    # Spustí se při pushi do hlavní větve, libovolné větve nebo při vytvoření git tagu
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_PIPELINE_SOURCE == "web"' # Možnost spustit ručně z rozhraní GitLabu
+  before_script:
+    # Kontrola zadaných přihlašovacích údajů
+    - |
+      if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
+        echo "CHYBA: Proměnné 'DOCKERHUB_USERNAME' nebo 'DOCKERHUB_TOKEN' nejsou nastaveny v GitLab CI/CD Variables!"
+        echo "Přejděte do: Settings -> CI/CD -> Variables a přidejte je."
+        exit 1
+      fi
+
+    - echo "Přihlašuji se k Docker Hubu jako $DOCKERHUB_USERNAME..."
+    - echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
+    # Určení cílového názvu image (pokud je definována vlastní proměnná DOCKERHUB_IMAGE, použije se ta)
+    - |
+      if [ -n "$DOCKERHUB_IMAGE" ]; then
+        TARGET_IMAGE="$DOCKERHUB_IMAGE"
+      else
+        TARGET_IMAGE="${DOCKERHUB_USERNAME}/dcs-radar"
+      fi
+      echo "Cílový Docker Hub repozitář: $TARGET_IMAGE"
+
+  script:
+    # Pokus o stažení existujícího image pro zrychlení buildu (layer caching)
+    - |
+      CACHE_PARAM=""
+      if docker pull "$TARGET_IMAGE:latest"; then
+        CACHE_PARAM="--cache-from $TARGET_IMAGE:latest"
+        echo "Cache nalezena, použiji $TARGET_IMAGE:latest jako cache zdroj."
+      else
+        echo "Předchozí image :latest zatím na Docker Hubu neexistuje (první build) - stavím bez externí cache."
+      fi
+
+    # Sestavení Docker image s využitím Dockerfile
+    - echo "Sestavuji Docker image..."
+    - docker build $CACHE_PARAM --tag "$TARGET_IMAGE:$CI_COMMIT_SHORT_SHA" -f Dockerfile .
+
+    # Odeslání tagu s krátkým SHA commitem
+    - echo "Odesílám $TARGET_IMAGE:$CI_COMMIT_SHORT_SHA..."
+    - docker push "$TARGET_IMAGE:$CI_COMMIT_SHORT_SHA"
+
+    # Pokud jsme na hlavní větvi (main / master), otagovat a odeslat jako :latest
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        echo "Větev $CI_COMMIT_BRANCH je výchozí - taguji a odesílám jako :latest..."
+        docker tag "$TARGET_IMAGE:$CI_COMMIT_SHORT_SHA" "$TARGET_IMAGE:latest"
+        docker push "$TARGET_IMAGE:latest"
+      fi
+
+    # Pokud byl commit otagován verzí (např. v1.0.0), otagovat a odeslat odpovídající tag
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        echo "Detekován git tag $CI_COMMIT_TAG - taguji a odesílám..."
+        docker tag "$TARGET_IMAGE:$CI_COMMIT_SHORT_SHA" "$TARGET_IMAGE:$CI_COMMIT_TAG"
+        docker push "$TARGET_IMAGE:$CI_COMMIT_TAG"
+      fi
+
+    - echo "Docker image byl úspěšně sestaven a odeslán na Docker Hub!"
