@@ -102,3 +102,25 @@ body {
   bottom: 84px !important;
   left: 10px !important;
 }
+
+/* Tactical Map Markers */
+.maplibregl-marker {
+  z-index: 5;
+}
+.maplibregl-marker:hover {
+  z-index: 50;
+}
+.tactical-unit-marker {
+  cursor: pointer;
+  z-index: 5;
+}
+.tactical-unit-marker:hover {
+  z-index: 25;
+  transform: scale(1.15);
+}
+.sam-range-badge {
+  z-index: 3;
+}
+.tactical-braa-badge {
+  z-index: 10;
+}

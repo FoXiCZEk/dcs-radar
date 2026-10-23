@@ -81,13 +81,16 @@ func (h *APIHandler) GetStatus(w http.ResponseWriter, _ *http.Request) {
 		sourceType = h.source.Type()
 		lastReceived = h.source.LastReceived()
 		if h.source.IsConnected() {
-			if !lastReceived.IsZero() && time.Since(lastReceived) > 15*time.Second {
+			timeSinceRecv := time.Since(lastReceived)
+			if !lastReceived.IsZero() && timeSinceRecv > 30*time.Second {
 				connState = "stale"
 			} else {
 				connState = "connected"
 			}
-			if !lastReceived.IsZero() {
-				latencyMs = time.Since(lastReceived).Milliseconds()
+			if !lastReceived.IsZero() && timeSinceRecv <= 5*time.Second {
+				latencyMs = timeSinceRecv.Milliseconds()
+			} else {
+				latencyMs = 0
 			}
 		}
 	}
@@ -96,11 +99,12 @@ func (h *APIHandler) GetStatus(w http.ResponseWriter, _ *http.Request) {
 	if healthProvider, ok := h.source.(interface{ GetDCSHealth() *models.DCSHealthStatus }); ok {
 		dcsHealth = healthProvider.GetDCSHealth()
 		if dcsHealth != nil {
-			if dcsHealth.State == "paused" {
+			timeSinceRecv := time.Since(lastReceived)
+			if dcsHealth.State == "paused" && (lastReceived.IsZero() || timeSinceRecv > 15*time.Second) {
 				connState = "paused"
-			} else if dcsHealth.State == "offline" {
+			} else if dcsHealth.State == "offline" && !h.source.IsConnected() {
 				connState = "disconnected"
-			} else if dcsHealth.State == "connected" && h.source.IsConnected() {
+			} else if h.source.IsConnected() {
 				connState = "connected"
 			}
 		}

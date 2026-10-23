@@ -35,10 +35,13 @@ type ParsedRecord struct {
 
 // Parser manages streaming ACMI state.
 type Parser struct {
-	ReferenceTime     time.Time
-	CurrentTimeOffset float64
-	FileVersion       string
-	objects           map[string]*models.Object
+	ReferenceTime      time.Time
+	ReferenceLongitude float64
+	ReferenceLatitude  float64
+	CurrentTimeOffset  float64
+	FileVersion        string
+	multilineBuffer    strings.Builder
+	objects            map[string]*models.Object
 }
 
 // NewParser creates an ACMI parser with default reference time set to UTC now.
@@ -59,12 +62,53 @@ func (p *Parser) CurrentAbsoluteTime() time.Time {
 	return p.ReferenceTime.Add(time.Duration(p.CurrentTimeOffset * float64(time.Second)))
 }
 
+// endsWithContinuation returns true if line ends with an odd number of backslashes (continuation in ACMI).
+func endsWithContinuation(s string) bool {
+	count := 0
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == '\\' {
+			count++
+		} else {
+			break
+		}
+	}
+	return count%2 != 0
+}
+
+// isValidObjectID checks if the ID is a valid hex object identifier or "0" (global).
+func isValidObjectID(id string) bool {
+	if id == "0" {
+		return true
+	}
+	if len(id) == 0 || len(id) > 32 {
+		return false
+	}
+	for _, ch := range id {
+		if !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
 // ParseLine processes a single line from an ACMI stream or file.
 func (p *Parser) ParseLine(line string) (*ParsedRecord, error) {
-	line = strings.TrimRight(line, "\r\n")
-	trimmed := strings.TrimSpace(line)
+	cleanLine := strings.TrimRight(line, "\r\n")
 
+	// Handle multi-line continuation (ACMI lines ending with \)
+	if p.multilineBuffer.Len() > 0 {
+		cleanLine = p.multilineBuffer.String() + "\n" + cleanLine
+		p.multilineBuffer.Reset()
+	}
+
+	trimmed := strings.TrimSpace(cleanLine)
 	if trimmed == "" {
+		return &ParsedRecord{Type: RecordTypeEmpty, RawLine: line}, nil
+	}
+
+	if endsWithContinuation(cleanLine) {
+		// Store without the trailing backslash continuation character
+		p.multilineBuffer.WriteString(cleanLine[:len(cleanLine)-1])
 		return &ParsedRecord{Type: RecordTypeEmpty, RawLine: line}, nil
 	}
 
@@ -73,12 +117,33 @@ func (p *Parser) ParseLine(line string) (*ParsedRecord, error) {
 		return &ParsedRecord{Type: RecordTypeComment, RawLine: line}, nil
 	}
 
-	// Header line
+	// Header lines
 	if strings.HasPrefix(trimmed, "FileType=") {
 		return &ParsedRecord{Type: RecordTypeHeader, RawLine: line}, nil
 	}
 	if strings.HasPrefix(trimmed, "FileVersion=") {
 		p.FileVersion = strings.TrimPrefix(trimmed, "FileVersion=")
+		return &ParsedRecord{Type: RecordTypeHeader, RawLine: line}, nil
+	}
+	if strings.HasPrefix(trimmed, "ReferenceLongitude=") {
+		valStr := strings.TrimPrefix(trimmed, "ReferenceLongitude=")
+		if val, err := strconv.ParseFloat(valStr, 64); err == nil {
+			p.ReferenceLongitude = val
+		}
+		return &ParsedRecord{Type: RecordTypeHeader, RawLine: line}, nil
+	}
+	if strings.HasPrefix(trimmed, "ReferenceLatitude=") {
+		valStr := strings.TrimPrefix(trimmed, "ReferenceLatitude=")
+		if val, err := strconv.ParseFloat(valStr, 64); err == nil {
+			p.ReferenceLatitude = val
+		}
+		return &ParsedRecord{Type: RecordTypeHeader, RawLine: line}, nil
+	}
+	if strings.HasPrefix(trimmed, "ReferenceTime=") {
+		valStr := strings.TrimPrefix(trimmed, "ReferenceTime=")
+		if parsedTime, err := parseTacviewTime(valStr); err == nil {
+			p.ReferenceTime = parsedTime
+		}
 		return &ParsedRecord{Type: RecordTypeHeader, RawLine: line}, nil
 	}
 
@@ -114,25 +179,36 @@ func (p *Parser) ParseLine(line string) (*ParsedRecord, error) {
 
 	// Object update or Global properties (ID=0)
 	// Example: 1001,T=41.5|42.1|3000,Name=F-16C,Type=Air+FixedWing
-	// Values may have escaped commas: \,
 	firstComma := strings.Index(trimmed, ",")
 	if firstComma == -1 {
-		// Line without comma, might be standalone ID or unknown token
 		return &ParsedRecord{Type: RecordTypeEmpty, RawLine: line}, nil
 	}
 
 	id := strings.TrimSpace(trimmed[:firstComma])
 	propsStr := trimmed[firstComma+1:]
 
+	// Object IDs must be hexadecimal or "0"
+	if !isValidObjectID(id) {
+		return &ParsedRecord{Type: RecordTypeEmpty, RawLine: line}, nil
+	}
+
 	props := splitProperties(propsStr)
 
 	// Global properties (ID == "0")
 	if id == "0" {
 		if refTimeStr, ok := props["ReferenceTime"]; ok {
-			// Tacview uses ISO 8601: e.g. 2026-10-22T10:00:00Z
-			parsedTime, err := parseTacviewTime(refTimeStr)
-			if err == nil {
+			if parsedTime, err := parseTacviewTime(refTimeStr); err == nil {
 				p.ReferenceTime = parsedTime
+			}
+		}
+		if refLonStr, ok := props["ReferenceLongitude"]; ok {
+			if val, err := strconv.ParseFloat(refLonStr, 64); err == nil {
+				p.ReferenceLongitude = val
+			}
+		}
+		if refLatStr, ok := props["ReferenceLatitude"]; ok {
+			if val, err := strconv.ParseFloat(refLatStr, 64); err == nil {
+				p.ReferenceLatitude = val
 			}
 		}
 		return &ParsedRecord{
@@ -205,7 +281,7 @@ func (p *Parser) ParseLine(line string) (*ParsedRecord, error) {
 		}
 	}
 
-	// Parse transform if present
+	// Parse transform if present (apply global ReferenceLongitude and ReferenceLatitude)
 	if tStr, ok := props["T"]; ok {
 		var prevTransform *models.Transform
 		if obj.CurrentTransform.Timestamp.After(time.Time{}) {
@@ -213,7 +289,7 @@ func (p *Parser) ParseLine(line string) (*ParsedRecord, error) {
 			prevTransform = &prev
 		}
 
-		transform, ok := ParseTransform(tStr, prevTransform, p.CurrentTimeOffset, p.ReferenceTime)
+		transform, ok := ParseTransform(tStr, prevTransform, p.CurrentTimeOffset, p.ReferenceTime, p.ReferenceLongitude, p.ReferenceLatitude)
 		if ok {
 			obj.CurrentTransform = transform
 		}

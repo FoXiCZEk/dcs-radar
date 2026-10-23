@@ -33,7 +33,7 @@ telemetry:
   # Konfigurace pro typ: "tcp"
   tcp:
     # IP adresa nebo hostname serveru, kde běží DCS World s Tacview exporterem.
-    host: "192.168.0.120"
+    host: "host.docker.internal"
 
     # Port Tacview Real-Time Telemetry exporteru (výchozí port Tacview je 42674).
     port: 42674
@@ -42,7 +42,7 @@ telemetry:
     game_port: 10308
 
     # Port rozhraní DCS-gRPC serveru (pokud je v DCS nainstalován mód dcs-grpc, např. 40051).
-    grpc_port: 40051
+    grpc_port: 50051
 
     # Heslo pro přístup k telemetrii (pokud je v Tacview nastaveno).
     password: ""

@@ -10,6 +10,7 @@ import { FilterPanel } from './components/FilterPanel/FilterPanel';
 import { EventList } from './components/Events/EventList';
 import { DiagnosticsModal } from './components/Diagnostics/DiagnosticsModal';
 import { MissileAlertBanner } from './components/Alerts/MissileAlertBanner';
+import { ErrorBoundary } from './components/Common/ErrorBoundary';
 
 const RadarApp: React.FC = () => {
   const { viewMode } = useRadar();
@@ -54,10 +55,14 @@ const RadarApp: React.FC = () => {
       {/* Main Map / Globe Display */}
       <main style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }}>
         <div style={{ width: '100%', height: '100%', display: viewMode === '2d' ? 'block' : 'none' }}>
-          <TacticalMap2D onMapReady={(map) => (mapInstanceRef.current = map)} />
+          <ErrorBoundary componentName="2D Taktická Mapa (MapLibre)">
+            <TacticalMap2D onMapReady={(map) => (mapInstanceRef.current = map)} />
+          </ErrorBoundary>
         </div>
         <div style={{ width: '100%', height: '100%', display: viewMode === '3d' ? 'block' : 'none' }}>
-          <TacticalGlobe3D />
+          <ErrorBoundary componentName="3D Taktický Glóbus (Cesium)">
+            <TacticalGlobe3D />
+          </ErrorBoundary>
         </div>
       </main>
 

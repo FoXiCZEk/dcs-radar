@@ -1,13 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as Cesium from 'cesium';
 import { useRadar } from '../../context/RadarContext';
 import { MapStyleType } from '../../types/telemetry';
-import { Crosshair, Eye, Zap } from 'lucide-react';
+import { Crosshair, Eye, Zap, Maximize2 } from 'lucide-react';
+import { getSAMProfile } from '../../utils/samDatabase';
 
 export const TacticalGlobe3D: React.FC = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const entitiesMapRef = useRef<Map<string, Cesium.Entity>>(new Map());
+  const samRingsMapRef = useRef<Map<string, Cesium.Entity>>(new Map());
+  const autoCenteredRef = useRef<boolean>(false);
 
   const {
     objects,
@@ -17,6 +20,7 @@ export const TacticalGlobe3D: React.FC = () => {
     filters,
     mapConfig,
     mapStyle,
+    viewMode,
   } = useRadar();
 
   const [perfMode, setPerfMode] = useState<boolean>(false);
@@ -74,24 +78,26 @@ export const TacticalGlobe3D: React.FC = () => {
       selectionIndicator: false,
       scene3DOnly: true,
       shouldAnimate: true,
+      skyAtmosphere: false,
     });
 
-    // Dark sky atmosphere
-    viewer.scene.globe.enableLighting = true;
+    viewer.scene.globe.enableLighting = false;
+    viewer.scene.globe.showGroundAtmosphere = false;
+    if (viewer.scene.sun) viewer.scene.sun.show = false;
+    if (viewer.scene.moon) viewer.scene.moon.show = false;
     viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0a0f1d');
 
     // Camera initial position over Caucasus
     viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(defaultLon, defaultLat - 0.4, 25000),
+      destination: Cesium.Cartesian3.fromDegrees(defaultLon, defaultLat - 0.2, 450000),
       orientation: {
         heading: Cesium.Math.toRadians(0),
-        pitch: Cesium.Math.toRadians(-35),
+        pitch: Cesium.Math.toRadians(-75),
         roll: 0.0,
       },
       duration: 1.5,
     });
 
-    // Click handler for picking entities in 3D
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction((click: any) => {
       const picked = viewer.scene.pick(click.position);
@@ -109,6 +115,16 @@ export const TacticalGlobe3D: React.FC = () => {
     };
   }, [mapConfig]);
 
+  // Handle container resizing when viewMode toggles to 3D
+  useEffect(() => {
+    if (viewMode === '3d' && viewerRef.current) {
+      const timer = setTimeout(() => {
+        viewerRef.current?.resize();
+      }, 60);
+      return () => clearTimeout(timer);
+    }
+  }, [viewMode]);
+
   // Switch imagery layer on mapStyle change
   useEffect(() => {
     const viewer = viewerRef.current;
@@ -124,35 +140,92 @@ export const TacticalGlobe3D: React.FC = () => {
     }
   }, [mapStyle, mapConfig]);
 
+  // Auto-fit theater helper in 3D
+  const handleFitTheater3D = useCallback(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+
+    const valid = objects.filter((o) => {
+      if (!o?.currentTransform) return false;
+      const { latitude, longitude } = o.currentTransform;
+      return typeof latitude === 'number' && typeof longitude === 'number' && !isNaN(latitude) && !isNaN(longitude) && (latitude !== 0 || longitude !== 0);
+    });
+
+    if (valid.length > 0) {
+      let minLon = 180, maxLon = -180, minLat = 90, maxLat = -90;
+      valid.forEach((o) => {
+        const { longitude, latitude } = o.currentTransform;
+        if (longitude < minLon) minLon = longitude;
+        if (longitude > maxLon) maxLon = longitude;
+        if (latitude < minLat) minLat = latitude;
+        if (latitude > maxLat) maxLat = latitude;
+      });
+
+      const centerLon = (minLon + maxLon) / 2;
+      const centerLat = (minLat + maxLat) / 2;
+      const dLon = maxLon - minLon;
+      const dLat = maxLat - minLat;
+      const spanKm = Math.max(dLon * 80, dLat * 111, 80);
+      const height = Math.max(spanKm * 950, 350000);
+
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat - (dLat * 0.15), height),
+        orientation: {
+          heading: Cesium.Math.toRadians(0),
+          pitch: Cesium.Math.toRadians(-75),
+          roll: 0.0,
+        },
+        duration: 1.2,
+      });
+    }
+  }, [objects]);
+
   // 2. Render & update 3D entities
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
 
     const entitiesMap = entitiesMapRef.current;
+    const samRingsMap = samRingsMapRef.current;
     const currentIDs = new Set<string>();
+    const currentSamIDs = new Set<string>();
 
-    // Apply active filters
+    // Apply active filters with strict transform validation
     const filteredObjects = objects.filter((obj) => {
-      if (!filters.coalitions.includes(obj.coalition)) return false;
-      if (!filters.categories.includes(obj.category)) return false;
+      if (!obj || !obj.currentTransform) return false;
+      const tr = obj.currentTransform;
+      if (typeof tr.latitude !== 'number' || typeof tr.longitude !== 'number') return false;
+      if (isNaN(tr.latitude) || isNaN(tr.longitude)) return false;
+      if (tr.latitude === 0 && tr.longitude === 0) return false;
+
+      if (filters.coalitions.length > 0 && obj.coalition && !filters.coalitions.includes(obj.coalition)) {
+        return false;
+      }
+      if (filters.categories.length > 0 && obj.category && !filters.categories.includes(obj.category)) {
+        return false;
+      }
       if (filters.searchTerm) {
         const term = filters.searchTerm.toLowerCase();
-        if (
-          !obj.name?.toLowerCase().includes(term) &&
-          !obj.pilot?.toLowerCase().includes(term) &&
-          !obj.callsign?.toLowerCase().includes(term) &&
-          !obj.id.toLowerCase().includes(term)
-        )
-          return false;
+        const matchesName = obj.name?.toLowerCase().includes(term);
+        const matchesPilot = obj.pilot?.toLowerCase().includes(term);
+        const matchesCallsign = obj.callsign?.toLowerCase().includes(term);
+        const matchesID = obj.id.toLowerCase().includes(term);
+        if (!matchesName && !matchesPilot && !matchesCallsign && !matchesID) return false;
       }
       return true;
     });
 
+    // Auto-center camera on first valid units
+    if (!autoCenteredRef.current && filteredObjects.length > 0) {
+      autoCenteredRef.current = true;
+      handleFitTheater3D();
+    }
+
     filteredObjects.forEach((obj) => {
       currentIDs.add(obj.id);
       const tr = obj.currentTransform;
-      const position = Cesium.Cartesian3.fromDegrees(tr.longitude, tr.latitude, tr.altitude);
+      const alt = typeof tr.altitude === 'number' && !isNaN(tr.altitude) ? tr.altitude : 0;
+      const position = Cesium.Cartesian3.fromDegrees(tr.longitude, tr.latitude, alt);
 
       const color =
         obj.coalition === 'Blue'
@@ -173,61 +246,104 @@ export const TacticalGlobe3D: React.FC = () => {
           name: obj.name || obj.type,
           position: position,
           point: {
-            pixelSize: isSelected ? 14 : obj.category === 'Weapon' ? 7 : 10,
+            pixelSize: isSelected ? 16 : obj.category === 'Weapon' ? 8 : 12,
             color: color,
             outlineColor: Cesium.Color.WHITE,
-            outlineWidth: isSelected ? 3 : 1,
+            outlineWidth: isSelected ? 3 : 1.5,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
           label: filters.showLabels
             ? {
-                text: `${obj.name || obj.type} (${Math.round(tr.altitude)}m)`,
-                font: '11px sans-serif',
+                text: `${obj.name || obj.type} (${Math.round(alt)}m)`,
+                font: 'bold 12px sans-serif',
                 fillColor: Cesium.Color.WHITE,
                 outlineColor: Cesium.Color.BLACK,
-                outlineWidth: 2,
+                outlineWidth: 3,
                 style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                pixelOffset: new Cesium.Cartesian2(0, -18),
-                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 150000),
+                pixelOffset: new Cesium.Cartesian2(0, -20),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 1500000),
               }
             : undefined,
         });
 
         // Add 3D Trajectory Polyline in space
         if (filters.showTrails && obj.trail && obj.trail.length > 1) {
-          const positions = obj.trail.map((t) =>
-            Cesium.Cartesian3.fromDegrees(t.longitude, t.latitude, t.altitude)
-          );
-          entity.polyline = new Cesium.PolylineGraphics({
-            positions: positions,
-            width: 2,
-            material: new Cesium.PolylineGlowMaterialProperty({
-              glowPower: 0.2,
-              color: color.withAlpha(0.7),
-            }),
-          });
+          const positions = obj.trail
+            .filter((t) => typeof t.longitude === 'number' && typeof t.latitude === 'number' && !isNaN(t.latitude))
+            .map((t) => Cesium.Cartesian3.fromDegrees(t.longitude, t.latitude, t.altitude || 0));
+
+          if (positions.length > 1) {
+            entity.polyline = new Cesium.PolylineGraphics({
+              positions: positions,
+              width: 2,
+              material: new Cesium.PolylineGlowMaterialProperty({
+                glowPower: 0.2,
+                color: color.withAlpha(0.7),
+              }),
+            });
+          }
         }
 
         entitiesMap.set(obj.id, entity);
       } else {
-        // Inkrementální aktualizace 3D pozice
+        // Incremental update of 3D position
         entity.position = position as any;
 
         if (entity.point) {
-          entity.point.pixelSize = (isSelected ? 14 : obj.category === 'Weapon' ? 7 : 10) as any;
-          entity.point.outlineWidth = (isSelected ? 3 : 1) as any;
+          entity.point.pixelSize = (isSelected ? 16 : obj.category === 'Weapon' ? 8 : 12) as any;
+          entity.point.outlineWidth = (isSelected ? 3 : 1.5) as any;
+          entity.point.disableDepthTestDistance = Number.POSITIVE_INFINITY as any;
         }
 
         if (filters.showLabels && entity.label) {
-          entity.label.text = `${obj.name || obj.type} (${Math.round(tr.altitude)}m)` as any;
+          entity.label.text = `${obj.name || obj.type} (${Math.round(alt)}m)` as any;
+          entity.label.disableDepthTestDistance = Number.POSITIVE_INFINITY as any;
         }
 
-        // Update trail polyline
         if (filters.showTrails && obj.trail && obj.trail.length > 1) {
-          const positions = obj.trail.map((t) =>
-            Cesium.Cartesian3.fromDegrees(t.longitude, t.latitude, t.altitude)
-          );
-          if (entity.polyline) {
+          const positions = obj.trail
+            .filter((t) => typeof t.longitude === 'number' && typeof t.latitude === 'number' && !isNaN(t.latitude))
+            .map((t) => Cesium.Cartesian3.fromDegrees(t.longitude, t.latitude, t.altitude || 0));
+
+          if (positions.length > 1 && entity.polyline) {
             entity.polyline.positions = positions as any;
+          }
+        }
+      }
+
+      // SAM / AAA 3D Threat Cylinder
+      if (filters.showThreatRings && obj.alive) {
+        const profile = getSAMProfile(obj.type, obj.name);
+        if (profile) {
+          currentSamIDs.add(obj.id);
+          const rangeMeters = profile.engagementRangeKm * 1000;
+          const maxAltMeters = Math.min(profile.maxAltM || 15000, 25000);
+          const isThreat = obj.coalition === 'Red';
+          const ringColor = isThreat
+            ? Cesium.Color.RED.withAlpha(0.12)
+            : obj.coalition === 'Blue'
+            ? Cesium.Color.SKYBLUE.withAlpha(0.1)
+            : Cesium.Color.LIME.withAlpha(0.1);
+
+          let samEntity = samRingsMap.get(obj.id);
+          if (!samEntity) {
+            samEntity = viewer.entities.add({
+              id: `sam-ring-3d-${obj.id}`,
+              position: Cesium.Cartesian3.fromDegrees(tr.longitude, tr.latitude, maxAltMeters / 2),
+              cylinder: {
+                length: maxAltMeters,
+                topRadius: rangeMeters,
+                bottomRadius: rangeMeters,
+                material: ringColor,
+                outline: true,
+                outlineColor: (isThreat ? Cesium.Color.RED : Cesium.Color.SKYBLUE).withAlpha(0.6),
+                outlineWidth: 1,
+              },
+            });
+            samRingsMap.set(obj.id, samEntity);
+          } else {
+            samEntity.position = Cesium.Cartesian3.fromDegrees(tr.longitude, tr.latitude, maxAltMeters / 2) as any;
           }
         }
       }
@@ -241,6 +357,14 @@ export const TacticalGlobe3D: React.FC = () => {
       }
     });
 
+    // Remove deleted SAM rings
+    samRingsMap.forEach((entity, id) => {
+      if (!currentSamIDs.has(id)) {
+        viewer.entities.remove(entity);
+        samRingsMap.delete(id);
+      }
+    });
+
     // Camera follow entity in 3D
     if (followSelected && selectedObjectId) {
       const entity = entitiesMap.get(selectedObjectId);
@@ -250,7 +374,7 @@ export const TacticalGlobe3D: React.FC = () => {
     } else if (!followSelected && viewer.trackedEntity) {
       viewer.trackedEntity = undefined;
     }
-  }, [objects, filters, selectedObjectId, followSelected]);
+  }, [objects, filters, selectedObjectId, followSelected, handleFitTheater3D]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -275,9 +399,29 @@ export const TacticalGlobe3D: React.FC = () => {
           left: '16px',
           zIndex: 10,
           display: 'flex',
-          gap: '6px',
+          gap: '8px',
         }}
       >
+        <button
+          onClick={handleFitTheater3D}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 12px',
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            borderRadius: '6px',
+            backgroundColor: 'rgba(15, 23, 42, 0.88)',
+            color: '#38bdf8',
+            border: '1px solid rgba(56, 189, 248, 0.4)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            cursor: 'pointer',
+          }}
+        >
+          <Maximize2 size={13} /> Vycentrovat bojiště
+        </button>
+
         <button
           onClick={() => setPerfMode(!perfMode)}
           style={{

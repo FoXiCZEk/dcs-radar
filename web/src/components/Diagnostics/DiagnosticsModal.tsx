@@ -80,7 +80,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
                 {status?.connectionState === 'connected' ? 'připojeno' : status?.connectionState === 'paused' ? 'pozastaveno' : 'odpojeno'}
               </strong></div>
               <div>WebSocket: <strong style={{ color: wsState === 'connected' ? '#4ade80' : '#f87171' }}>{wsState}</strong></div>
-              <div>Zpoždění (latence): <strong style={{ color: '#f8fafc' }}>{status?.latencyMs || 0} ms</strong></div>
+              <div>Zpoždění (latence): <strong style={{ color: '#f8fafc' }}>{status?.connectionState === 'connected' ? `${status?.latencyMs || 0} ms` : '—'}</strong></div>
               <div style={{ gridColumn: 'span 2' }}>
                 Poslední přijatý záznam: <strong style={{ color: '#f8fafc' }}>{status?.lastReceived ? new Date(status.lastReceived).toLocaleString('cs-CZ') : 'žádný'}</strong>
               </div>

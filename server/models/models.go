@@ -181,17 +181,20 @@ func ResolveCategory(typeStr string) Category {
 	switch {
 	case strings.Contains(t, "weapon") || strings.Contains(t, "missile") || strings.Contains(t, "rocket") || strings.Contains(t, "bomb") || strings.Contains(t, "torpedo"):
 		return CategoryWeapon
+	case strings.Contains(t, "sea") || strings.Contains(t, "watercraft") || strings.Contains(t, "ship") || strings.Contains(t, "boat") || strings.Contains(t, "submarine") || strings.Contains(t, "aircraftcarrier"):
+		return CategorySea
 	case strings.Contains(t, "rotorcraft") || strings.Contains(t, "helicopter"):
 		return CategoryAirRotor
-	case strings.Contains(t, "air") || strings.Contains(t, "fixedwing"):
-		return CategoryAirFixedWing
-	case strings.Contains(t, "ground") || strings.Contains(t, "vehicle") || strings.Contains(t, "tank") || strings.Contains(t, "infantry") || strings.Contains(t, "structure"):
+	case strings.Contains(t, "ground") || strings.Contains(t, "vehicle") || strings.Contains(t, "tank") || strings.Contains(t, "infantry") || strings.Contains(t, "structure") || strings.Contains(t, "antiaircraft"):
 		return CategoryGround
-	case strings.Contains(t, "sea") || strings.Contains(t, "watercraft") || strings.Contains(t, "ship") || strings.Contains(t, "boat") || strings.Contains(t, "submarine"):
-		return CategorySea
+	case strings.Contains(t, "fixedwing") || strings.Contains(t, "plane") || strings.Contains(t, "air+"):
+		return CategoryAirFixedWing
 	case strings.Contains(t, "navaid") || strings.Contains(t, "waypoint") || strings.Contains(t, "bullseye") || strings.Contains(t, "airfield"):
 		return CategoryNavaid
 	default:
+		if strings.HasPrefix(t, "air") {
+			return CategoryAirFixedWing
+		}
 		return CategoryOther
 	}
 }

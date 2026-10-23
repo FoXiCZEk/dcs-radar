@@ -106,7 +106,7 @@ export const SystemBar: React.FC<SystemBarProps> = ({
           <span style={{ color: isConnected ? '#4ade80' : isPaused ? '#fbbf24' : isStale ? '#fbbf24' : '#f87171', fontWeight: 600 }}>
             {isConnected ? 'PŘIPOJENO' : isPaused ? 'MISE POZASTAVENA' : isStale ? 'DATA ZASTARALÁ' : 'SERVER NEPOSLOUCHÁ'}
           </span>
-          {status && status.latencyMs > 0 && (
+          {isConnected && status && status.latencyMs > 0 && (
             <span style={{ color: '#94a3b8', marginLeft: '4px' }}>({status.latencyMs} ms)</span>
           )}
         </div>

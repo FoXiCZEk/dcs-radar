@@ -33,7 +33,9 @@ type DCSGRPCClient struct {
 	weather     *models.DCSWeather
 	missionTime string
 
-	lastFetch time.Time
+	lastFetch              time.Time
+	lastMissionTimeAdvance time.Time
+	isSimulationPaused     bool
 }
 
 // NewDCSGRPCClient creates a new gRPC client for DCS.
@@ -81,7 +83,7 @@ func (c *DCSGRPCClient) connect() error {
 }
 
 func (c *DCSGRPCClient) run() {
-	ticker := time.NewTicker(8 * time.Second)
+	ticker := time.NewTicker(4 * time.Second)
 	defer ticker.Stop()
 
 	// Initial fetch attempt
@@ -155,8 +157,25 @@ func (c *DCSGRPCClient) PollOnce() error {
 	defer cancelTime()
 
 	if resp, err := missionClient.GetScenarioCurrentTime(ctxTime, &mission.GetScenarioCurrentTimeRequest{}); err == nil && resp != nil {
+		newTime := resp.GetDatetime()
 		c.mu.Lock()
-		c.missionTime = resp.GetDatetime()
+		if newTime != "" {
+			if newTime != c.missionTime {
+				c.lastMissionTimeAdvance = time.Now()
+				c.isSimulationPaused = false
+			} else {
+				// Time hasn't changed since last poll
+				if !c.lastMissionTimeAdvance.IsZero() && time.Since(c.lastMissionTimeAdvance) > 35*time.Second {
+					c.isSimulationPaused = true
+				}
+			}
+			c.missionTime = newTime
+		}
+		c.mu.Unlock()
+	} else {
+		// If gRPC call fails or is not available, do not flag simulation as paused
+		c.mu.Lock()
+		c.isSimulationPaused = false
 		c.mu.Unlock()
 	}
 
@@ -228,6 +247,16 @@ func (c *DCSGRPCClient) GetMissionTime() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.missionTime
+}
+
+// IsSimulationPaused returns true if DCS-gRPC detected that scenario time stopped advancing.
+func (c *DCSGRPCClient) IsSimulationPaused() bool {
+	if c == nil {
+		return false
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.isSimulationPaused
 }
 
 // SendChatMessage sends a message to in-game DCS chat.

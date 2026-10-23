@@ -125,19 +125,21 @@ func (s *TCPSource) ProbeHealth() models.DCSHealthStatus {
 	state := "offline"
 	msg := fmt.Sprintf("DCS Server na %s neposlouchá (offline).", s.cfg.Host)
 
-	lastRecv := s.LastReceived()
-	isReceiving := !lastRecv.IsZero() && time.Since(lastRecv) < 15*time.Second
-
-	if isReceiving {
-		state = "connected"
-		msg = "DCS Server je aktivní a vysílá realtime telemetrii."
-	} else if gamePortOpen || grpcPortOpen || tacviewOpen {
-		state = "paused"
-		if tacviewOpen {
-			msg = fmt.Sprintf("DCS Server běží (spojení s Tacview %d aktivní), ale mise je pozastavena.", s.cfg.Port)
+	if tacviewOpen {
+		s.mu.RLock()
+		lastRecv := s.lastReceived
+		s.mu.RUnlock()
+		isTacviewIdle := !lastRecv.IsZero() && time.Since(lastRecv) > 15*time.Second
+		if isTacviewIdle && s.grpcClient != nil && s.grpcClient.IsSimulationPaused() {
+			state = "paused"
+			msg = fmt.Sprintf("DCS Server běží (spojení s Tacview %d aktivní), ale simulace v DCS je pozastavena.", s.cfg.Port)
 		} else {
-			msg = fmt.Sprintf("DCS Server běží (herní port %d / gRPC %d aktivní), ale Tacview port %d neposlouchá. Mise může být pozastavena.", gamePort, grpcPort, s.cfg.Port)
+			state = "connected"
+			msg = "DCS Server je aktivní a vysílá realtime telemetrii."
 		}
+	} else if gamePortOpen || grpcPortOpen {
+		state = "connecting"
+		msg = fmt.Sprintf("DCS Server běží (herní port %d / gRPC %d aktivní), navazuje se spojení s telemetrií na portu %d...", gamePort, grpcPort, s.cfg.Port)
 	}
 
 	status := models.DCSHealthStatus{
@@ -294,6 +296,11 @@ func (s *TCPSource) handleConnection(ctx context.Context, conn net.Conn, recordC
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		_ = tcpConn.SetKeepAlive(true)
+		_ = tcpConn.SetKeepAlivePeriod(15 * time.Second)
+	}
+
 	// Perform Tacview RTT handshake
 	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	firstLine, err := readHandshakeToken(reader)
@@ -334,18 +341,26 @@ func (s *TCPSource) handleConnection(ctx context.Context, conn net.Conn, recordC
 		default:
 		}
 
-		// When mission is paused, Tacview can stay quiet for extended periods.
-		// Use a 20s read deadline to verify socket health without tearing down the connection.
-		_ = conn.SetReadDeadline(time.Now().Add(20 * time.Second))
+		// In DCS World, when ground units and ships are stationary, Tacview can pulse periodically.
+		// Use a 60-second read deadline. If gRPC detects the simulation is running but Tacview is silent
+		// for >90 seconds, reconnect to re-establish a fresh telemetry stream.
+		_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				// Socket is still connected, but idle (likely paused DCS mission)
+				// Socket is idle
 				s.ProbeHealth()
+				if s.grpcClient != nil && !s.grpcClient.IsSimulationPaused() {
+					if time.Since(s.LastReceived()) > 90*time.Second {
+						return fmt.Errorf("telemetrický proud Tacview neaktivní déle než 90 s při běžící simulaci, obnovuji spojení...")
+					}
+				}
 				continue
 			}
 			return fmt.Errorf("spojení přerušeno: %w", err)
 		}
+
+		s.updateLastReceived()
 
 		rec, err := s.parser.ParseLine(line)
 		if err != nil {
@@ -354,7 +369,6 @@ func (s *TCPSource) handleConnection(ctx context.Context, conn net.Conn, recordC
 		}
 
 		if rec != nil && rec.Type != acmi.RecordTypeEmpty && rec.Type != acmi.RecordTypeComment {
-			s.updateLastReceived()
 			select {
 			case recordCh <- rec:
 			default:

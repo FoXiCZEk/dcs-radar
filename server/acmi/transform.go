@@ -14,8 +14,9 @@ const EarthRadiusMeters = 6371000.0
 
 // ParseTransform parses the Tacview T= string format:
 // T=Longitude|Latitude|Altitude|Roll|Pitch|Yaw|U|V|Heading
+// Coordinates in Tacview ACMI are relative to ReferenceLongitude and ReferenceLatitude.
 // Supports delta/sparse formats where empty fields (e.g. 41.5|42.1|3000|||180) preserve previous values.
-func ParseTransform(tStr string, prev *models.Transform, timeOffset float64, refTime time.Time) (models.Transform, bool) {
+func ParseTransform(tStr string, prev *models.Transform, timeOffset float64, refTime time.Time, refLon, refLat float64) (models.Transform, bool) {
 	tStr = strings.TrimPrefix(tStr, "T=")
 	parts := strings.Split(tStr, "|")
 	if len(parts) < 2 {
@@ -40,16 +41,16 @@ func ParseTransform(tStr string, prev *models.Transform, timeOffset float64, ref
 		result.Heading = prev.Heading
 	}
 
-	// Longitude (index 0)
+	// Longitude (index 0) - add ReferenceLongitude offset
 	if len(parts) > 0 && parts[0] != "" {
 		if val, err := strconv.ParseFloat(parts[0], 64); err == nil {
-			result.Longitude = val
+			result.Longitude = val + refLon
 		}
 	}
-	// Latitude (index 1)
+	// Latitude (index 1) - add ReferenceLatitude offset
 	if len(parts) > 1 && parts[1] != "" {
 		if val, err := strconv.ParseFloat(parts[1], 64); err == nil {
-			result.Latitude = val
+			result.Latitude = val + refLat
 		}
 	}
 	// Altitude MSL in meters (index 2)
@@ -101,14 +102,12 @@ func ParseTransform(tStr string, prev *models.Transform, timeOffset float64, ref
 		dt := result.Timestamp.Sub(prev.Timestamp).Seconds()
 		if dt > 0.01 && dt < 60.0 {
 			dist := HaversineDistance(prev.Latitude, prev.Longitude, result.Latitude, result.Longitude)
-			// Include 3D vertical distance
 			dz := result.Altitude - prev.Altitude
 			dist3D := math.Sqrt(dist*dist + dz*dz)
 			speedMS := dist3D / dt
 			result.SpeedMS = speedMS
 			result.SpeedKts = speedMS * 1.94384
 
-			// If heading is 0 and object moved, derive heading from coordinates
 			if result.Heading == 0 && dist > 5.0 {
 				result.Heading = CalculateBearing(prev.Latitude, prev.Longitude, result.Latitude, result.Longitude)
 			}
@@ -118,7 +117,7 @@ func ParseTransform(tStr string, prev *models.Transform, timeOffset float64, ref
 	return result, true
 }
 
-// NormalizeHeading ensures angle is within [0, 360) degrees.
+// NormalizeHeading wraps an angle in degrees into [0, 360).
 func NormalizeHeading(deg float64) float64 {
 	h := math.Mod(deg, 360.0)
 	if h < 0 {
@@ -132,15 +131,17 @@ func HaversineDistance(lat1, lon1, lat2, lon2 float64) float64 {
 	dLat := (lat2 - lat1) * math.Pi / 180.0
 	dLon := (lon2 - lon1) * math.Pi / 180.0
 
-	radLat1 := lat1 * math.Pi / 180.0
-	radLat2 := lat2 * math.Pi / 180.0
-
 	a := math.Sin(dLat/2.0)*math.Sin(dLat/2.0) +
-		math.Cos(radLat1)*math.Cos(radLat2)*
+		math.Cos(lat1*math.Pi/180.0)*math.Cos(lat2*math.Pi/180.0)*
 			math.Sin(dLon/2.0)*math.Sin(dLon/2.0)
 
 	c := 2.0 * math.Atan2(math.Sqrt(a), math.Sqrt(1.0-a))
 	return EarthRadiusMeters * c
+}
+
+// GreatCircleDistance is an alias for HaversineDistance.
+func GreatCircleDistance(lat1, lon1, lat2, lon2 float64) float64 {
+	return HaversineDistance(lat1, lon1, lat2, lon2)
 }
 
 // CalculateBearing calculates the initial bearing in degrees from point 1 to point 2.

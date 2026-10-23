@@ -94,8 +94,16 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 			// Check if file exists, otherwise serve index.html for SPA routing
 			path := filepath.Join(staticDir, filepath.Clean(r.URL.Path))
 			if info, err := os.Stat(path); err != nil || info.IsDir() {
+				w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+				w.Header().Set("Pragma", "no-cache")
+				w.Header().Set("Expires", "0")
 				http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
 				return
+			}
+			if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+				w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+				w.Header().Set("Pragma", "no-cache")
+				w.Header().Set("Expires", "0")
 			}
 			fileServer.ServeHTTP(w, r)
 		})
