@@ -21,39 +21,58 @@ jobs:
         env:
           GITLAB_USER: "foxiczek1"
           GITLAB_HOST: "gitlab.docker.foxiczek.cz"
-          GITLAB_TOKEN: "glpat-w0Kb6OgyOJNKL5VVTepBCG86MQp1OjUH.01.0w00191hx"
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
           REPO_NAME: ${{ github.event.repository.name }}
         run: |
-          USER_DATA=$(curl --silent --fail --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-            "https://$GITLAB_HOST/api/v4/user")
+          # 1. Overeni tokenu a ziskani uzivatelskych dat
+          RESPONSE=$(curl -sS -w "\n%{http_code}" --header "PRIVATE-TOKEN: $GITLAB_TOKEN" "https://$GITLAB_HOST/api/v4/user")
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
 
-          USER_ID=$(echo "$USER_DATA" | jq -r '.id')
-          NAMESPACE_ID=$(echo "$USER_DATA" | jq -r '.username')
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Chyba prihlaseni k GitLab API (HTTP $HTTP_STATUS): $BODY"
+            echo "Zkontrolujte platnost GITLAB_TOKEN a jeho opravneni (scope: api)."
+            exit 1
+          fi
 
-          # Kontrola, zda projekt jiz neexistuje
-          HTTP_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" \
-            --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-            "https://$GITLAB_HOST/api/v4/projects/$NAMESPACE_ID%2F$REPO_NAME")
+          NAMESPACE_ID=$(echo "$BODY" | jq -r '.username')
+          echo "Prihlasen jako uzivatel: $NAMESPACE_ID"
 
-          if [ "$HTTP_STATUS" -eq 404 ]; then
-            echo "Repozitory neexistuje. Vytvarim $REPO_NAME na GitLabu..."
-            curl --silent --fail --request POST \
+          # 2. Kontrola, zda projekt jiz existuje
+          CHECK_RESP=$(curl -sS -w "\n%{http_code}" --header "PRIVATE-TOKEN: $GITLAB_TOKEN" "https://$GITLAB_HOST/api/v4/projects/$NAMESPACE_ID%2F$REPO_NAME")
+          CHECK_STATUS=$(echo "$CHECK_RESP" | tail -n1)
+          CHECK_BODY=$(echo "$CHECK_RESP" | sed '$d')
+
+          if [ "$CHECK_STATUS" -eq 404 ]; then
+            echo "Repozitar na GitLabu neexistuje. Vytvarim $REPO_NAME..."
+            CREATE_RESP=$(curl -sS -w "\n%{http_code}" --request POST \
               --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
               --header "Content-Type: application/json" \
               --data "{\"name\": \"$REPO_NAME\", \"visibility\": \"private\"}" \
-              "https://$GITLAB_HOST/api/v4/projects"
+              "https://$GITLAB_HOST/api/v4/projects")
+            CREATE_STATUS=$(echo "$CREATE_RESP" | tail -n1)
+            CREATE_BODY=$(echo "$CREATE_RESP" | sed '$d')
+
+            if [ "$CREATE_STATUS" -ne 201 ]; then
+              echo "::error::Chyba pri vytvareni projektu (HTTP $CREATE_STATUS): $CREATE_BODY"
+              exit 1
+            fi
             echo "Projekt uspesne vytvoren."
+          elif [ "$CHECK_STATUS" -eq 200 ]; then
+            echo "Projekt jiz na GitLabu existuje, pokracuji v synchronizaci."
           else
-            echo "Projekt jiz na GitLabu existuje (HTTP $HTTP_STATUS), pokrauji v synchronizaci."
+            echo "::error::Neocekavana odpoved pri kontrole projektu (HTTP $CHECK_STATUS): $CHECK_BODY"
+            exit 1
           fi
 
       - name: Push to GitLab
         env:
           GITLAB_HOST: "gitlab.docker.foxiczek.cz"
           GITLAB_USER: "foxiczek1"
-          GITLAB_TOKEN: "glpat-w0Kb6OgyOJNKL5VVTepBCG86MQp1OjUH.01.0w00191hx"
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
           REPO_NAME: ${{ github.event.repository.name }}
         run: |
+          git remote remove gitlab 2>/dev/null || true
           git remote add gitlab "https://${GITLAB_USER}:${GITLAB_TOKEN}@${GITLAB_HOST}/${GITLAB_USER}/${REPO_NAME}.git"
           git push --prune gitlab '+refs/remotes/origin/*:refs/heads/*'
           git push --tags gitlab
